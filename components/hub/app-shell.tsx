@@ -89,8 +89,12 @@ export function AppShell({
 
           {/* min-w-0: a grid item defaults to min-width:auto, so wide content would
               push this track past the viewport and the shell's overflow-hidden
-              would clip it with no way to scroll back. */}
-          <main className="col-start-2 row-start-2 min-w-0 overflow-y-auto bg-background">
+              would clip it with no way to scroll back.
+              relative: makes main the containing block for absolutely positioned content
+              (sr-only labels, tooltips) with no positioned ancestor. Otherwise they resolve
+              against the viewport, escape main's scroll clipping, and give the document
+              blank scroll space below the 100vh shell. */}
+          <main className="relative col-start-2 row-start-2 min-w-0 overflow-y-auto bg-background">
             <div className="mx-auto max-w-[1480px] px-7 pb-[60px] pt-[22px] max-[640px]:px-4">
               {children}
             </div>
