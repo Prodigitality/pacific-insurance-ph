@@ -73,9 +73,9 @@ export function Th<T>({
   );
 }
 
-export function Table({ children }: { children: ReactNode }) {
+export function Table({ children, stickyNameColumn }: { children: ReactNode; stickyNameColumn?: 1 | 2 }) {
   return (
-    <div className="w-full overflow-x-auto">
+    <div className="w-full overflow-x-auto" data-sticky-name-column={stickyNameColumn}>
       <table className="w-full border-collapse">{children}</table>
     </div>
   );

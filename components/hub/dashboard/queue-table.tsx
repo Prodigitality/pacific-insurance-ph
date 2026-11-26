@@ -36,6 +36,8 @@ export function QueueTable<T extends { id: string; clientId: string }>({
   const top = rows.slice(0, slice);
   const { sorted, sort, toggle } = useSort(top, defaultSort.key, defaultSort.dir);
   const { openContact, prefetchContact } = useRecordNav();
+  const nameColumnIndex = columns.findIndex((c) => String(c.k) === "clientName") + 1;
+  const stickyNameColumn = nameColumnIndex === 1 || nameColumnIndex === 2 ? nameColumnIndex : undefined;
   if (sorted.length === 0) {
     return (
       <div className="flex items-center gap-2.5 px-[18px] py-[22px] text-[12.5px] text-subtle">
@@ -45,7 +47,7 @@ export function QueueTable<T extends { id: string; clientId: string }>({
     );
   }
   return (
-    <Table>
+    <Table stickyNameColumn={stickyNameColumn}>
       <thead>
         <tr>
           {columns.map((c) => (

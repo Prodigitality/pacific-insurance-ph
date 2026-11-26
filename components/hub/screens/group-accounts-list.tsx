@@ -74,7 +74,7 @@ export function GroupAccountsList({ groups }: { groups: GroupAccount[] }) {
       />
 
       <Card className="overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" data-sticky-name-column={1}>
           <table className="w-full min-w-[760px] text-left text-[13px]">
             <thead>
               <tr className="border-b border-border-soft text-[11px] font-bold uppercase tracking-[0.05em] text-subtle">

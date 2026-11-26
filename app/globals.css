@@ -325,6 +325,36 @@
   }
 }
 
+/* Identity columns opt in by their actual 1-based index. Direct-table selectors
+   keep nested tables and colspan empty states out of the pinned layer. */
+[data-sticky-name-column="1"] > table > thead > tr > th:nth-child(1):not([colspan]),
+[data-sticky-name-column="1"] > table > tbody > tr > td:nth-child(1):not([colspan]),
+[data-sticky-name-column="2"] > table > thead > tr > th:nth-child(2):not([colspan]),
+[data-sticky-name-column="2"] > table > tbody > tr > td:nth-child(2):not([colspan]) {
+  position: sticky;
+  left: 0;
+  background-color: var(--surface);
+  box-shadow: 1px 0 0 var(--border);
+}
+[data-sticky-name-column="1"] > table > tbody > tr > td:nth-child(1):not([colspan]),
+[data-sticky-name-column="2"] > table > tbody > tr > td:nth-child(2):not([colspan]) {
+  z-index: 10;
+}
+[data-sticky-name-column="1"] > table > thead > tr > th:nth-child(1):not([colspan]),
+[data-sticky-name-column="2"] > table > thead > tr > th:nth-child(2):not([colspan]) {
+  top: 0;
+  z-index: 20;
+}
+[data-sticky-name-column="1"] > table > tbody > tr:is(:hover, :focus-visible) > td:nth-child(1):not([colspan]),
+[data-sticky-name-column="2"] > table > tbody > tr:is(:hover, :focus-visible) > td:nth-child(2):not([colspan]) {
+  background-color: var(--hover);
+}
+/* Transparent-hover rows still need an opaque pinned cell over scrolling text. */
+[data-sticky-name-column="1"] > table > tbody > tr.hover\:bg-transparent:is(:hover, :focus-visible) > td:nth-child(1):not([colspan]),
+[data-sticky-name-column="2"] > table > tbody > tr.hover\:bg-transparent:is(:hover, :focus-visible) > td:nth-child(2):not([colspan]) {
+  background-color: var(--surface);
+}
+
 /* ============================================================
    "Still needed" jump target (components/hub/overlays/still-needed.tsx).
    `revealField` sets [data-attention] for ~1.8s on the field or section it

@@ -106,7 +106,7 @@ export function ClientsList({
           </span>
         </div>
 
-        <Table>
+        <Table stickyNameColumn={1}>
           <thead>
             <tr>
               <Th label="Client" k="fullName" sort={sort} toggle={toggle} />

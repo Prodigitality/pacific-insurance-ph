@@ -223,7 +223,7 @@ export function GroupLive({
               </button>
             ))}
           </div>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto" data-sticky-name-column={1}>
             <table className="w-full min-w-[680px] text-left text-[13px]">
               <thead>
                 <tr className="border-b border-border-soft text-[11px] font-bold uppercase tracking-[0.05em] text-subtle">
