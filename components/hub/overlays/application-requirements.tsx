@@ -623,19 +623,19 @@ export function ApplicationRequirementsModal({ applicationId, onClose }: { appli
                 {groupRequirementSections(items, requirementSection).map(({ section, items: sectionItems }) => <Fragment key={section}>
                   <h3 className="pt-3 text-[11px] font-bold uppercase tracking-wide text-subtle">{section}</h3>
                   {sectionItems.map((item) => (
-                  <div key={item.id} id={`requirement-${item.id}`} className={cn("rounded-md border px-3 py-2.5", requirementRowTone(item.status))}>
-                    <div className="flex items-center gap-3">
-                      <RequirementStatusDot status={item.status} />
+                  <div key={item.id} id={`requirement-${item.id}`} className={cn("rounded-md border p-3 transition-colors", requirementRowTone(item.status))}>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                      <RequirementStatusDot status={item.status} className="max-sm:hidden" />
                       <div className="min-w-0 flex-1">
-                        <div className="text-[13px] font-semibold">{requirementLabel(item).title}{!item.isRequired && <span className="ml-1.5 font-normal text-muted-foreground">Optional</span>}</div>
-                        {(requirementLabel(item).owner ?? item.notes) && <div className="mt-0.5 text-[11.5px] text-muted-foreground">{requirementLabel(item).owner ?? item.notes}</div>}
+                        <div className="text-[12.5px] font-semibold">{requirementLabel(item).title}{!item.isRequired && <span className="ml-1 font-normal text-muted-foreground">Optional</span>}</div>
+                        {(requirementLabel(item).owner ?? item.notes) && <div className="text-[11px] text-muted-foreground">{requirementLabel(item).owner ?? item.notes}</div>}
                         <label className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"><input type="checkbox" checked={item.isRequired} disabled={pending} onChange={() => toggleRequired(item)} /> Count as required</label>
                       </div>
-                      <select aria-label={`Status for ${item.documentName}`} value={item.status} onChange={(event) => void update(item, event.target.value as ApplicationRequirementStatus)} className="h-8 rounded-md border border-border-strong bg-card px-2 text-[12px] font-semibold outline-none focus:border-brand disabled:opacity-60">
+                      <select aria-label={`Status for ${item.documentName}`} value={item.status} onChange={(event) => void update(item, event.target.value as ApplicationRequirementStatus)} className={`${INPUT} sm:w-44 sm:shrink-0`}>
                         {APPLICATION_REQUIREMENT_STATUSES.map((status) => <option key={status}>{status}</option>)}
                       </select>
                     </div>
-                    <div className="mt-2 pl-10">
+                    <div className="mt-2 sm:pl-10">
                       <DocumentUploadForm
                         clientId={payload.application.clientId}
                         applicationId={applicationId}
