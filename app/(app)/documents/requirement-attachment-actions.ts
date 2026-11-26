@@ -1,10 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { ActionResult } from "@/lib/actions/context";
+import { getActor, type ActionResult } from "@/lib/actions/context";
 import { assertRecordAccess, RecordAccessError } from "@/lib/auth/agent-scope";
-import { attachRequirementDocument, beginRequirementAttachmentUpload, listRequirementEmailAttachments, requirementAttachmentError } from "@/lib/documents/requirement-attachments";
-import type { AttachmentPickerScope, RequirementAttachmentPage, RequirementAttachmentReceipt, RequirementReceiptSource, RequirementTarget } from "@/lib/documents/requirement-attachment.types";
+import { attachRequirementDocument, beginRequirementAttachmentUpload, listAttachedRequirementDocuments, listRequirementEmailAttachments, removeRequirementAttachment, requirementAttachmentError } from "@/lib/documents/requirement-attachments";
+import type { AttachmentPickerScope, RequirementAttachmentPage, RequirementAttachmentReceipt, RequirementAttachmentRemoval, RequirementReceiptSource, RequirementTarget } from "@/lib/documents/requirement-attachment.types";
 
 /** Agent scope (Phase J9) surfaces as "Record not found."; other failures keep their safe mapping. */
 function actionError(error: unknown): string {
@@ -36,5 +36,27 @@ export async function attachRequirementDocumentAction(target: RequirementTarget,
     revalidatePath(target.kind === "application" ? "/applications" : target.kind === "claim" ? "/claims" : "/travel");
     if (receipt.document.clientId) revalidatePath(`/clients/${receipt.document.clientId}`);
     return { ok: true, data: receipt };
+  } catch (error) { return { ok: false, error: actionError(error) }; }
+}
+
+export async function listAttachedRequirementDocumentsAction(target: RequirementTarget): Promise<ActionResult<{ documents: { id: string; name: string }[]; canRemove: boolean }>> {
+  try {
+    await assertRecordAccess(target.kind, target.recordId);
+    return { ok: true, data: await listAttachedRequirementDocuments(target) };
+  } catch (error) { return { ok: false, error: actionError(error) }; }
+}
+
+export async function removeRequirementAttachmentAction(target: RequirementTarget, documentId: string): Promise<ActionResult<RequirementAttachmentRemoval>> {
+  try {
+    const actor = await getActor();
+    if (actor.role !== "Owner" && actor.role !== "Admin") return { ok: false, error: "Only an Admin can remove a checklist attachment." };
+    await assertRecordAccess(target.kind, target.recordId);
+    await assertRecordAccess("document", documentId);
+    const { clientId, removal } = await removeRequirementAttachment(target, documentId, actor.id);
+    for (const path of ["/documents", target.kind === "application" ? "/applications" : target.kind === "claim" ? "/claims" : "/travel", `/clients/${clientId}`]) {
+      try { revalidatePath(path); }
+      catch { console.error("Requirement attachment cache invalidation failed", { documentId, path }); }
+    }
+    return { ok: true, data: removal };
   } catch (error) { return { ok: false, error: actionError(error) }; }
 }

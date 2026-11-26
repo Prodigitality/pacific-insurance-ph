@@ -53,3 +53,10 @@ export interface RequirementAttachmentReceipt {
   requirementStatus: "Pending" | "Received" | "Incomplete" | "Verified";
   alreadyAttached: boolean;
 }
+
+export interface RequirementAttachmentRemoval {
+  documentId: string;
+  requirementStatus: "Pending" | "Incomplete" | "Received" | "Verified";
+  originalPreserved: boolean;
+  cleanupFailed: boolean;
+}

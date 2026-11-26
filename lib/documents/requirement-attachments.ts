@@ -6,10 +6,11 @@ import { safeGmailFileName } from "@/lib/gmail/mime";
 import { getScopedInboxMessage, InboxReviewError, requireInboxActor, validateInboxId } from "@/lib/gmail/review";
 import { getRequirementAttachmentsRepository, type RequirementUploadMetadata } from "@/lib/repositories/requirement-attachments";
 import { getClientsRepository } from "@/lib/repositories/clients";
+import { getDocumentsRepository, type DocumentRecord } from "@/lib/repositories/documents";
 import { RepositoryError } from "@/lib/repositories/types";
-import { createSignedUpload, downloadObject, getObjectInfo, uploadObject } from "@/lib/supabase/storage";
+import { createSignedUpload, downloadObject, getObjectInfo, removeObject, uploadObject } from "@/lib/supabase/storage";
 import { PDF_UPLOAD_MAX_BYTES } from "./uploaded-pdf";
-import type { AttachmentPickerScope, RequirementAttachmentReceipt, RequirementReceiptSource, RequirementTarget } from "./requirement-attachment.types";
+import type { AttachmentPickerScope, RequirementAttachmentReceipt, RequirementAttachmentRemoval, RequirementReceiptSource, RequirementTarget } from "./requirement-attachment.types";
 
 const PDF_SIGNATURE = Buffer.from("%PDF-", "ascii");
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -37,6 +38,50 @@ function uploadMetadata(input: RequirementUploadMetadata): RequirementUploadMeta
 export function requirementAttachmentError(error: unknown): string {
   return error instanceof InboxReviewError || error instanceof RepositoryError
     ? error.message : "The attachment is temporarily unavailable. Please try again.";
+}
+
+function matchesRequirement(document: DocumentRecord, target: RequirementTarget, clientId: string): boolean {
+  if (document.clientId !== clientId) return false;
+  switch (target.kind) {
+    case "application": return document.applicationId === target.recordId && document.applicationRequirementId === target.requirementId;
+    case "claim": return document.claimId === target.recordId && document.claimRequirementId === target.requirementId;
+    case "travel": return document.travelRequestId === target.recordId && document.travelRequirementId === target.requirementId;
+  }
+}
+
+export async function listAttachedRequirementDocuments(target: RequirementTarget): Promise<{ documents: { id: string; name: string }[]; canRemove: boolean }> {
+  const actor = await requireInboxActor();
+  validateTarget(target);
+  const { clientId } = await getRequirementAttachmentsRepository().resolveScope(actor.id, { type: "requirement", target });
+  const documents = await getDocumentsRepository().listByClient(clientId);
+  return {
+    documents: documents.filter((document) => matchesRequirement(document, target, clientId)).map(({ id, name }) => ({ id, name })),
+    canRemove: actor.role === "Owner" || actor.role === "Admin",
+  };
+}
+
+/** The database commits detach/reset before any optional byte cleanup. */
+export async function removeRequirementAttachment(target: RequirementTarget, documentId: string, actorId?: string): Promise<{ clientId: string; removal: RequirementAttachmentRemoval }> {
+  const actor = await requireInboxActor(actorId);
+  if (actor.role !== "Owner" && actor.role !== "Admin") throw new InboxReviewError("Only an Admin can remove a checklist attachment.", 403);
+  validateTarget(target);
+  validateInboxId(documentId);
+  const repository = getRequirementAttachmentsRepository();
+  const { clientId } = await repository.resolveScope(actor.id, { type: "requirement", target });
+  const document = await getDocumentsRepository().findById(documentId);
+  if (!document || !matchesRequirement(document, target, clientId))
+    throw new InboxReviewError("This attachment changed. Refresh and try again.", 409);
+  const detached = await repository.detach(actor.id, target, documentId);
+  let cleanupFailed = false;
+  if (detached.storagePath && !detached.originalPreserved) {
+    try { await removeObject(detached.storagePath); }
+    catch {
+      cleanupFailed = true;
+      // Deliberately omit provider error text, credentials and document contents.
+      console.error("Requirement attachment byte cleanup failed", { documentId, storagePath: detached.storagePath });
+    }
+  }
+  return { clientId, removal: { documentId, requirementStatus: detached.requirementStatus, originalPreserved: detached.originalPreserved, cleanupFailed } };
 }
 
 export async function listRequirementEmailAttachments(scope: AttachmentPickerScope, options?: { search?: string; offset?: number }) {

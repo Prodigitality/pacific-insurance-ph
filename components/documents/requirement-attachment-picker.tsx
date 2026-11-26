@@ -23,6 +23,7 @@ type Props = {
   value?: RequirementAttachmentSelection | null;
   onSelect?: (selection: RequirementAttachmentSelection | null) => void;
   onAttached?: (receipt: RequirementAttachmentReceipt) => void;
+  onBusyChange?: (busy: boolean) => void;
   disabled?: boolean;
 };
 
@@ -96,7 +97,7 @@ function AttachmentPreview({ selection }: { selection: RequirementAttachmentSele
 }
 
 /** One picker for staged creation selections and receipts on existing requirement rows. */
-export function RequirementAttachmentPicker({ clientId, target, label, requirement, value, onSelect, onAttached, disabled }: Props) {
+export function RequirementAttachmentPicker({ clientId, target, label, requirement, value, onSelect, onAttached, onBusyChange, disabled }: Props) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"device" | "email">("device");
   const [draft, setDraft] = useState<RequirementAttachmentSelection | null>(null);
@@ -128,6 +129,11 @@ export function RequirementAttachmentPicker({ clientId, target, label, requireme
   const hint = requirement ? requirementHint(requirement.documentName) : null;
   const [hintOpen, setHintOpen] = useState(false);
   const hintId = useId();
+
+  useEffect(() => {
+    onBusyChange?.(open);
+    return () => onBusyChange?.(false);
+  }, [open, onBusyChange]);
 
   // Client-scoped pickers share one listing, so a whole checklist costs one request. Per-row
   // (requirement) listings prefetch on hover/focus of the trigger instead.

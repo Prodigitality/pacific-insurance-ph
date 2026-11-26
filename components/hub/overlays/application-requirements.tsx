@@ -646,6 +646,11 @@ export function ApplicationRequirementsModal({ applicationId, onClose }: { appli
                           latestStatusPick.current[item.id] = (latestStatusPick.current[item.id] ?? 0) + 1;
                           setRowStatus(item.id, receipt.requirementStatus);
                         }}
+                        onRemoved={(result) => {
+                          latestStatusPick.current[item.id] = (latestStatusPick.current[item.id] ?? 0) + 1;
+                          setRowStatus(item.id, result.requirementStatus);
+                          void reload();
+                        }}
                         onUploaded={() => void reload()}
                         sourceLibraryDocumentId={item.documentName.toLowerCase().includes("application form") ? payload.carrierForms.find((form) => form.personName === item.appliesTo)?.documentLibraryId ?? undefined : undefined}
                       />
