@@ -22,6 +22,7 @@ export function ClientsList({
   total,
   archivedClients = [],
   groupsByClient = {},
+  policyProductsByClient = {},
 }: {
   /** Active clients only. */
   clients: Client[];
@@ -30,21 +31,23 @@ export function ClientsList({
   archivedClients?: Client[];
   /** Group-account membership per client id. */
   groupsByClient?: Record<string, { id: string; name: string }>;
+  /** Distinct policy product names per client id (no entry = no policies). */
+  policyProductsByClient?: Record<string, string[]>;
 }) {
   const router = useRouter();
   const [q, setQ] = useState("");
   const [showArchived, setShowArchived] = useState(false);
 
-  const visible = useMemo(
-    () => (showArchived ? [...clients, ...archivedClients] : clients),
-    [showArchived, clients, archivedClients],
-  );
+  const visible = useMemo(() => {
+    const shown = showArchived ? [...clients, ...archivedClients] : clients;
+    return shown.map((c) => ({ ...c, policyProducts: (policyProductsByClient[c.id] ?? []).join(", ") }));
+  }, [showArchived, clients, archivedClients, policyProductsByClient]);
 
   const filtered = useMemo(() => {
     const ql = q.trim().toLowerCase();
     if (!ql) return visible;
     return visible.filter((c) =>
-      [c.fullName, c.email, c.mobileNumber, c.referenceNo, c.leadSource]
+      [c.fullName, c.email, c.mobileNumber, c.referenceNo, c.leadSource, c.policyProducts]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(ql)),
     );
@@ -113,6 +116,7 @@ export function ClientsList({
               <Th label="Reference" k="referenceNo" sort={sort} toggle={toggle} />
               <Th label="Mobile" k="mobileNumber" sort={sort} toggle={toggle} />
               <Th label="Type" k="clientType" sort={sort} toggle={toggle} />
+              <Th label="Policy products" k="policyProducts" sort={sort} toggle={toggle} />
               <Th label="Status" k="status" sort={sort} toggle={toggle} />
               <Th label="Added" k="createdAt" sort={sort} toggle={toggle} />
             </tr>
@@ -146,6 +150,7 @@ export function ClientsList({
                 <Td className="font-mono text-[12px] text-muted-foreground">{c.referenceNo}</Td>
                 <Td className="text-muted-foreground">{c.mobileNumber ?? "—"}</Td>
                 <Td className="text-muted-foreground">{c.clientType}</Td>
+                <Td className="max-w-[260px] whitespace-normal break-words text-muted-foreground">{c.policyProducts || "—"}</Td>
                 <Td>
                   <StatusBadge status={c.status} />
                 </Td>
@@ -154,7 +159,7 @@ export function ClientsList({
             ))}
             {sorted.length === 0 && (
               <tr>
-                <Td colSpan={6} className="py-12 text-center text-muted-foreground">
+                <Td colSpan={7} className="py-12 text-center text-muted-foreground">
                   No clients found.{" "}
                   <Link href="/clients/new" className="font-semibold text-brand-hover hover:text-brand">
                     Add the first one.
