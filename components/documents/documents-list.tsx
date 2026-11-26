@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useActionState, useMemo, useRef, useState, type RefObject } from "react";
 
 import { deleteDocumentAction } from "@/app/(app)/documents/actions";
 import { I } from "@/components/hub/icons";
+import { useOverlays } from "@/components/hub/overlays/overlay-provider";
 import { Card, Pill } from "@/components/hub/primitives";
 import { Row, Table, Td, Th, useSort } from "@/components/hub/table";
 import type { Tone } from "@/components/hub/tone";
@@ -24,8 +25,68 @@ function fmtDate(iso: string) {
   });
 }
 
+function DeleteDocumentForm({ id, inFlightRef }: { id: string; inFlightRef: RefObject<boolean> }) {
+  const { confirm } = useOverlays();
+  const confirmedSubmissionRef = useRef(false);
+  const [, action, pending] = useActionState<void, FormData>(
+    async (_previous, formData) => {
+      try {
+        await deleteDocumentAction(formData);
+      } finally {
+        inFlightRef.current = false;
+      }
+    },
+    undefined,
+  );
+
+  return (
+    <form
+      action={action}
+      onSubmit={async (e) => {
+        if (confirmedSubmissionRef.current) {
+          confirmedSubmissionRef.current = false;
+          return;
+        }
+        e.preventDefault();
+        if (pending || inFlightRef.current) return;
+        const form = e.currentTarget;
+        inFlightRef.current = true;
+        let submitted = false;
+        try {
+          const confirmed = await confirm({
+            kind: "danger",
+            title: "Delete document?",
+            message: "Delete this document?",
+            confirmLabel: "Delete",
+            cancelLabel: "Cancel",
+          });
+          if (!confirmed || !form.isConnected) return;
+          // Each row consumes only its own approval through React's form action.
+          confirmedSubmissionRef.current = true;
+          form.requestSubmit();
+          submitted = !confirmedSubmissionRef.current;
+        } finally {
+          confirmedSubmissionRef.current = false;
+          if (!submitted) inFlightRef.current = false;
+        }
+      }}
+    >
+      <input type="hidden" name="id" value={id} />
+      <button
+        type="submit"
+        disabled={pending}
+        className="rounded-md px-2 py-1 text-[12px] font-semibold text-subtle hover:bg-hover hover:text-red disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {pending ? "Deleting…" : "Delete"}
+      </button>
+    </form>
+  );
+}
+
 export function DocumentsList({ items, total }: { items: DocumentListItem[]; total: number }) {
   const [q, setQ] = useState("");
+  // A second row must not replace the shared dialog while another delete is in flight.
+  const deleteInFlightRef = useRef(false);
 
   const filtered = useMemo(() => {
     const ql = q.trim().toLowerCase();
@@ -95,20 +156,7 @@ export function DocumentsList({ items, total }: { items: DocumentListItem[]; tot
                     <I.download size={13} /> Download
                   </a>
                   {!isCommissionVoucher(d) && (
-                  <form
-                    action={deleteDocumentAction}
-                    onSubmit={(e) => {
-                      if (!confirm("Delete this document?")) e.preventDefault();
-                    }}
-                  >
-                    <input type="hidden" name="id" value={d.id} />
-                    <button
-                      type="submit"
-                      className="rounded-md px-2 py-1 text-[12px] font-semibold text-subtle hover:bg-hover hover:text-red"
-                    >
-                      Delete
-                    </button>
-                  </form>
+                    <DeleteDocumentForm id={d.id} inFlightRef={deleteInFlightRef} />
                   )}
                 </div>
               </Td>
