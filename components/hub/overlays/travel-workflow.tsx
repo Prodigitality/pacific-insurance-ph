@@ -19,6 +19,7 @@ import type { DocumentRecord } from "@/lib/repositories/documents";
 import type { Payment } from "@/lib/repositories/payments";
 import { money } from "@/lib/format";
 import { TRAVEL_PAYMENT_PROOF_REQUIREMENT, travelClientProofDocuments } from "@/lib/travel/client-payment-proof";
+import { BlockedNotice } from "./still-needed";
 import { useVerifyPaymentForm } from "./verify-payment";
 
 function postIssuanceDocuments(documents: DocumentRecord[], documentType: string) {
@@ -46,8 +47,12 @@ function TravelCollectionForm({ payment, existingProofDocuments, onCancel, onSav
   const form = useVerifyPaymentForm(payment, onSaved, { existingProofDocuments });
   return <div className="mt-3 border-t border-border-soft pt-3">
     {form.fields}
+    {form.missing.length > 0 && (
+      <div className="mt-3 overflow-hidden rounded-md border border-amber-border [&>div]:border-b-0">
+        <BlockedNotice action={form.submitLabel} items={form.missing} />
+      </div>
+    )}
     <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
-      {form.missing.length > 0 && <p className="mr-auto text-[11.5px] text-muted-foreground">Still needed: {form.missing.map((item) => item.label).join(", ")}</p>}
       <Btn onClick={onCancel} disabled={form.pending}>Cancel</Btn>
       <Btn variant="primary" disabled={!form.canSave} onClick={form.save}><I.check size={14} /> {form.submitLabel}</Btn>
     </div>

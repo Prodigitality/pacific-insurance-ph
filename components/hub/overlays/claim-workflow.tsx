@@ -11,6 +11,7 @@ import {
   type ClaimRequirementsPayload,
 } from "@/app/(app)/claims/actions";
 import { listSubmissionRecordsAction } from "@/app/(app)/submissions/actions";
+import { isOutstandingRequirement, requirementBlockers } from "@/lib/applications/blocked-actions";
 import { CLAIM_WORKFLOW_STEPS, claimWorkflowProgress, isClaimStepUnlocked, type ClaimStepNumber } from "@/lib/claims/workflow";
 import { CLAIM_SUBMISSION_MODES } from "@/lib/db-enums";
 import { fmtDate, peso } from "@/lib/format";
@@ -93,7 +94,7 @@ export function ClaimWorkflowModal({ claimId: initialClaimId, onClose }: { claim
         const submissions = records.ok ? records.data : [];
         setPayload(result.data);
         setSent(submissions);
-        const outstandingCount = result.data.requirements.filter((item) => item.isRequired && (item.status === "Pending" || item.status === "Incomplete")).length;
+        const outstandingCount = result.data.requirements.filter(isOutstandingRequirement).length;
         const opening = claimWorkflowProgress({
           claimExists: true,
           requirementCount: result.data.requirements.length,
@@ -111,7 +112,7 @@ export function ClaimWorkflowModal({ claimId: initialClaimId, onClose }: { claim
   const claim = payload?.claim ?? null;
   const requirements = payload?.requirements ?? [];
   const checklistType = checklistForClaimType(claim?.claimType ?? null);
-  const outstanding = requirements.filter((item) => item.isRequired && (item.status === "Pending" || item.status === "Incomplete"));
+  const outstanding = requirements.filter(isOutstandingRequirement);
   const submitted = !!claim && hasSubmitted(claim, sent);
   const flow = claimWorkflowProgress({ claimExists: !!claim, requirementCount: requirements.length, checklistAvailable: !!checklistType, outstanding: outstanding.length, submitted });
   const go = (n: ClaimStepNumber) => { setComposing(false); setStep(n); };
@@ -212,7 +213,7 @@ export function ClaimWorkflowModal({ claimId: initialClaimId, onClose }: { claim
             <MissingDocumentsEmail load={() => getMissingClaimDocumentsDraftAction(claimId)} onClose={() => setRequesting(false)} />
           )}
           {requirements.length === 0 && (
-            <div className="mb-4 rounded-md border border-dashed border-border-strong px-4 py-8 text-center">
+            <div id="claim-generate-checklist" className="mb-4 rounded-md border border-dashed border-border-strong px-4 py-8 text-center">
               <p className="text-[13px] font-semibold">No checklist generated yet</p>
               {checklistType ? (
                 <>
@@ -280,13 +281,17 @@ export function ClaimWorkflowModal({ claimId: initialClaimId, onClose }: { claim
       );
     }
     if (step === 2) {
+      // Continue's greyed-out state and its "still needed" chips are derived from the same progress facts.
+      const continueBlocked = !flow.done[2] && !flow.done[3];
+      const missing = continueBlocked
+        ? [
+            ...(requirements.length === 0 && checklistType ? [{ label: "Generate the checklist", target: "claim-generate-checklist" }] : []),
+            ...requirementBlockers(requirements),
+          ]
+        : [];
       return (
-        <WorkflowFooter
-          back={back}
-          missing={outstanding.length && !flow.done[3] ? [{ label: `${outstanding.length} required document${outstanding.length === 1 ? "" : "s"}`, target: `requirement-${outstanding[0].id}` }] : []}
-          note="All required documents are in"
-        >
-          <Btn variant="primary" disabled={!flow.done[2] && !flow.done[3]} onClick={() => go(3)}>Continue <I.chevRight size={15} /></Btn>
+        <WorkflowFooter back={back} missing={missing} note="All required documents are in">
+          <Btn variant="primary" disabled={continueBlocked} onClick={() => go(3)}>Continue <I.chevRight size={15} /></Btn>
         </WorkflowFooter>
       );
     }

@@ -85,6 +85,9 @@ export function ClaimRequirementsPanel({
       router.refresh();
     });
 
+  // Why "Change claim type" is greyed out; the button's disabled state is derived from this same value.
+  const changeBlockedReason = !nextType ? "Pick a claim type to change to." : nextType === claimType ? `This claim is already ${claimType}.` : null;
+
   const changeType = () =>
     startTransition(async () => {
       if (!nextType) return;
@@ -153,6 +156,7 @@ export function ClaimRequirementsPanel({
         <div className="text-[11.5px] text-muted-foreground">
           {/* Outstanding counts live in the workflow footer; this row is only about the claim type. */}
           {!canChangeType ? "Claim type locked — documents already received" : "Wrong checklist? Change the claim type"}
+          {canChangeType && !pending && changeBlockedReason && <div id={`claim-type-reason-${claimId}`} className="mt-0.5">{changeBlockedReason}</div>}
         </div>
         {canChangeType && (
           <div className="flex items-center gap-2">
@@ -168,7 +172,7 @@ export function ClaimRequirementsPanel({
                 <option key={t} value={t}>{t}{INTERIM_CHECKLIST_TYPES.includes(t) ? " (interim checklist)" : ""}</option>
               ))}
             </select>
-            <Btn variant="ghost" disabled={pending || !nextType || nextType === claimType} onClick={changeType}>Change claim type</Btn>
+            <Btn variant="ghost" disabled={pending || changeBlockedReason !== null} aria-describedby={changeBlockedReason ? `claim-type-reason-${claimId}` : undefined} onClick={changeType}>Change claim type</Btn>
           </div>
         )}
       </div>

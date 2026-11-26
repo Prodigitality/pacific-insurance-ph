@@ -28,6 +28,7 @@ import { PdfUpload } from "@/components/documents/pdf-upload";
 import { countsAsCompleted, deliveryOutcomeLabel, type SubmissionRecord } from "@/lib/submissions/submission-email";
 import { APPLICATION_WORKFLOW_STEPS, isStepUnlocked, workflowProgress, type WorkflowStepNumber } from "@/lib/applications/workflow";
 import { groupRequirementSections, isMedicalQuestionnaireName, requirementLabel, requirementLabelText, requirementSection } from "@/lib/applications/requirement-sections";
+import { isOutstandingRequirement, medicalReviewBlockers, requirementBlockers, type ActionBlocker } from "@/lib/applications/blocked-actions";
 import { fmtDate, peso } from "@/lib/format";
 import { I } from "../icons";
 import { AREA, Btn, Field, INPUT, StatusBadge } from "../primitives";
@@ -463,7 +464,7 @@ export function ApplicationRequirementsModal({ applicationId, onClose }: { appli
       if (!active) return;
       if (result.ok) {
         setPayload(result.data);
-        const outstandingCount = result.data.requirements.filter((item) => item.isRequired && (item.status === "Pending" || item.status === "Incomplete")).length;
+        const outstandingCount = result.data.requirements.filter(isOutstandingRequirement).length;
         const opening = workflowProgress({
           outstanding: outstandingCount,
           submitted: hasSubmitted(result.data),
@@ -505,7 +506,7 @@ export function ApplicationRequirementsModal({ applicationId, onClose }: { appli
       overlays.toast("Phase activated", `${result.data.activated} requirement${result.data.activated === 1 ? "" : "s"} now outstanding`);
     });
   const complete = required.filter((item) => item.status === "Verified").length;
-  const outstanding = required.filter((item) => item.status === "Pending" || item.status === "Incomplete");
+  const outstanding = requirements.filter(isOutstandingRequirement);
   const progress = required.length ? Math.round((complete / required.length) * 100) : 0;
 
   // Optimistic: show the new status at once, save in the background, and restore the previous
@@ -743,7 +744,7 @@ export function ApplicationRequirementsModal({ applicationId, onClose }: { appli
                 hint={payment ? "Correct it if Pacific Cross’s billing changed." : "From Pacific Cross’s billing — prefilled from the application’s estimate."}
               >
                 <div className="flex gap-2">
-                  <input aria-label="Premium billed by Pacific Cross" className={INPUT} inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value.replace(/[^0-9.,]/g, ""))} placeholder="0" />
+                  <input id="app-payment-amount" aria-label="Premium billed by Pacific Cross" className={INPUT} inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value.replace(/[^0-9.,]/g, ""))} placeholder="0" />
                   {payment && <Btn disabled={pending || !amount || Number(amount.replace(/[^0-9.]/g, "")) === payment.amount} onClick={createPayment}>Update amount</Btn>}
                 </div>
               </Field>
@@ -821,15 +822,21 @@ export function ApplicationRequirementsModal({ applicationId, onClose }: { appli
     const back = active > 1 ? <Btn onClick={() => go((active - 1) as WorkflowStepNumber)}><I.chevRight size={15} className="rotate-180" /> Back</Btn> : <Btn onClick={onClose}>Close</Btn>;
     let note = "";
     let primary: React.ReactNode = null;
+    // Each greyed-out primary action lists what is missing, derived from the same condition that disables it.
+    let missing: ActionBlocker[] = [];
+    let action: string | undefined;
     if (active === 1) {
       note = outstanding.length ? `${outstanding.length} required item${outstanding.length === 1 ? "" : "s"} still need attention` : "All required documents are in";
+      const continueBlocked = !flow.done[1] && !submitted;
+      missing = continueBlocked ? requirementBlockers(requirements) : [];
       primary = (
-        <Btn variant="primary" disabled={!flow.done[1] && !submitted} title={outstanding.length ? "Every required item must be received or verified first" : undefined} onClick={() => go(payload.medicalReview.status === "Not required" ? 3 : 2)}>
+        <Btn variant="primary" disabled={continueBlocked} onClick={() => go(payload.medicalReview.status === "Not required" ? 3 : 2)}>
           Continue <I.chevRight size={15} />
         </Btn>
       );
     } else if (active === 2) {
       note = payload.medicalReview.status;
+      missing = !flow.done[2] ? medicalReviewBlockers(payload.medicalReview) : [];
       primary = <Btn variant="primary" disabled={!flow.done[2]} onClick={() => go(3)}>Continue <I.chevRight size={15} /></Btn>;
     } else if (active === 3) {
       if (composing || !submitted) return null;
@@ -868,6 +875,8 @@ export function ApplicationRequirementsModal({ applicationId, onClose }: { appli
     } else if (active === 5) {
       if (!payment) {
         note = "Record the premium on Pacific Cross’s illustrative proposal";
+        action = "Create payment request";
+        missing = !amount ? [{ label: "premium billed by Pacific Cross", target: "app-payment-amount" }] : [];
         primary = <Btn variant="primary" disabled={pending || !amount} onClick={createPayment}><I.peso size={14} /> Create payment request</Btn>;
       } else if (payment.status !== "Verified") {
         return null; // VerifyPaymentInline has its own action bar
@@ -887,7 +896,7 @@ export function ApplicationRequirementsModal({ applicationId, onClose }: { appli
       return null; // PolicyCopyInline has its own action bar
     }
     return (
-      <WorkflowFooter back={back} note={note}>
+      <WorkflowFooter back={back} note={note} missing={missing} action={action}>
         {primary}
       </WorkflowFooter>
     );
@@ -920,7 +929,7 @@ export function ApplicationRequirementsModal({ applicationId, onClose }: { appli
       footer={footer}
     >
       {body}
-      {payload && <div hidden={active !== 2}>
+      {payload && <div id="app-medical-review" hidden={active !== 2}>
         <MedicalReviewStep key={applicationId} applicationId={applicationId} payload={payload} onReload={reload} onOpenRequirements={() => go(1)} onCleared={async () => {
           const data = await reload();
           if (data?.medicalReview.status !== "Cleared") return false;
