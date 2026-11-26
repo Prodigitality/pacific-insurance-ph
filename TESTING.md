@@ -55,6 +55,13 @@ access before these synthetic-only scenarios can run, then deactivate that accou
 6. Do not create lasting Inbox fixtures on production. Use the retained rollback evidence for
    Inbox retirement and deterministic action mocks for Storage-removal failure.
 
+Live polish accepted on November 26: proposal upload now precedes the full-width
+`Mark Received without PDF` alternative, separated by `or`; the redundant Lead stage row is
+removed. The user selected variant 1 with 14px spacing and the button treatment in the real
+client-page Live preview. Preview helpers were removed; component ESLint and the targeted
+Impeccable detector passed. This was layout acceptance only: no upload, status mutation or
+keyboard workflow was rerun, and it does not close the broader browser checklist above.
+
 ## November 4: real Gmail sending and replies
 
 Prerequisites: schema through `0059`, a connected `admin@pacificinsuranceph.com` with the send

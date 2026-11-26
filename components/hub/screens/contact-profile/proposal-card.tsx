@@ -260,21 +260,18 @@ export function ProposalCard({
       </div>
     </div>
   ) : null;
-  // The quote recorded at upload ("Quotation X · Annual · Grand total PHP Y") and the lead stage,
-  // shown as label / value rows under the PDF.
-  const stageValue = client.leadStage !== "Proposal" && status ? client.leadStage ?? "New Lead" : null;
+  // The quote recorded at upload, shown as label / value rows under the PDF.
   const noteParts = hasFiledProposal && shownDocument === proposalDocument && proposalDocument?.notes ? proposalDocument.notes.split(" · ") : [];
   const details = [
     { label: "Payment", value: noteParts.find((p) => p === "Annual" || p === "Semi-annual") },
     { label: "Grand total", value: noteParts.find((p) => p.startsWith("Grand total "))?.replace("Grand total ", "") },
     { label: "Quotation", value: noteParts.find((p) => p.startsWith("Quotation "))?.replace("Quotation ", "") },
-    { label: "Lead stage", value: stageValue ?? undefined },
   ].filter((d): d is { label: string; value: string } => !!d.value);
 
   return (
     <Card>
       <CardHead iconName="fileText" title="Proposal tracking" />
-      <div className="flex flex-col gap-3 px-[18px] py-3.5">
+      <div className="flex flex-col gap-3.5 px-[18px] py-3.5">
         <div className="flex items-start justify-between gap-3">
           <p className="min-w-0 self-center text-[14.5px] font-semibold leading-snug text-foreground">
             <span className={TONE_TEXT[statusTone]}>{statusHead}</span>
@@ -304,8 +301,18 @@ export function ProposalCard({
             </div>
           </div>
         )}
-        {otherActions.length > 0 && <div className="flex flex-wrap gap-2">{otherActions}</div>}
-        {receiptUpload}
+        {status !== "Requested" && otherActions.length > 0 && <div className="flex flex-wrap gap-2">{otherActions}</div>}
+        {(receiptUpload || (status === "Requested" && otherActions.length > 0)) && (
+          <div className="grid gap-3.5">
+            {receiptUpload}
+            {status === "Requested" && otherActions.length > 0 && (
+              <div className="grid gap-3.5">
+                {receiptUpload && <div className="flex items-center gap-2.5 text-[12px] text-muted-foreground"><span className="h-px flex-1 bg-border" />or<span className="h-px flex-1 bg-border" /></div>}
+                <div className="[&>button]:h-auto [&>button]:min-h-[30px] [&>button]:w-full [&>button]:whitespace-normal [&>button]:py-1.5 [&>button:not(:disabled)]:text-muted-foreground">{otherActions}</div>
+              </div>
+            )}
+          </div>
+        )}
         {uploadedNotice}
         {documentRow}
         {replaceUpload}
