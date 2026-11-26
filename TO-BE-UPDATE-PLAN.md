@@ -2701,10 +2701,17 @@ a wording choice.
 | Proposal Information Sheet | Checklist question C3 (see "Received but not loaded") |
 | **C2b** proposal calculator | Deferred for V1; the discount formula is still unavailable |
 | **J3 step 4b** | A throwaway Workspace seat, or the next real hire, to prove an invited user's first Google sign-in |
+### Appended follow-ups from `../added-plans.md` (2026-11-26)
 
 **Parked:** H2d (auto-detect received proposals), H4b (auto-log policies from the agency
 mailbox). **Gated on the NDA:** H1e (Policy Schedule 2 extraction, feeds D1).
+Append-only additions; the existing Phase L entries above remain unchanged.
 
 Noted but not requested: a WYSIWYG email editor; password-reset page together with Supabase
 custom SMTP (DJ6, deferred in J5). Lower-priority cleanup findings remain in the archived
 [`docs/archive/future-refactor.md`](docs/archive/future-refactor.md).
+|ID|Current status|Remaining work / acceptance|
+|:---|:---|:---|
+|L6 clarification|Open. The reference is Travel Insurance's requirements and documents styling.|Match the normal six-step Application workflow's Requirements and documents components to Travel Insurance. This clarifies the existing L6 task rather than adding a duplicate. Preserve application-specific requirements, statuses and workflow behavior.|
+|L18 — Client policy product names|Partial. The client profile's Policies card already shows product and plan names; the Clients list does not show policy product names.|Show the product names from the client's policies in the Clients list. Support multiple policies without substituting the lead-only `Product interest` field; retain the existing profile display.|
+|L19 — Upcoming renewal date filters|Partial. Active policies already generate renewal rows, with upcoming/overdue tracking independent of carrier notice receipt.|Add date-range and specific-month filters to the Renewals page using the renewal due date. Upcoming renewals must remain visible before a carrier notice is received; retain the existing status filters and due-date sorting.|
