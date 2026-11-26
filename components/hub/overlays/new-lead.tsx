@@ -27,7 +27,10 @@ const SOURCES = [
 ];
 
 
-export function NewLeadDrawer({ onClose }: { onClose: () => void }) {
+export function NewLeadDrawer({ prefill, onClose }: {
+  prefill?: { startingStage?: unknown };
+  onClose: () => void;
+}) {
   const router = useRouter();
   const overlays = useOverlays();
   const [pending, startTransition] = useTransition();
@@ -39,7 +42,9 @@ export function NewLeadDrawer({ onClose }: { onClose: () => void }) {
   const [product, setProduct] = useState("");
   const [estPremium, setEstPremium] = useState("");
   const [source, setSource] = useState("Referral");
-  const [stage, setStage] = useState("New Lead");
+  const [stage, setStage] = useState<string>(() =>
+    LEAD_BOARD_STAGES.find((stage) => stage === prefill?.startingStage) ?? "New Lead",
+  );
   const [status, setStatus] = useState("New");
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [follow, setFollow] = useState("");

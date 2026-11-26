@@ -194,7 +194,7 @@ export function BoardView({
                       );
                     })}
                     <button
-                      onClick={() => overlays.openPageModal("new-lead")}
+                      onClick={() => overlays.openPageModal("new-lead", { startingStage: stage })}
                       className="rounded-md border border-dashed border-border-strong py-1.5 text-[11.5px] font-semibold text-subtle transition-colors hover:border-brand hover:text-brand"
                     >
                       <I.plus size={13} className="mr-1 inline -translate-y-px" /> Add lead

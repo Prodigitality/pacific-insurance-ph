@@ -90,7 +90,7 @@ export function OverlayHost({
         />
       );
     case "page-modal":
-      if (overlay.modal === "new-lead") return <NewLeadDrawer onClose={close} />;
+      if (overlay.modal === "new-lead") return <NewLeadDrawer prefill={overlay.prefill} onClose={close} />;
       if (overlay.modal === "issue-policy") return <IssuePolicyDrawer onClose={close} />;
       if (overlay.modal === "file-claim") return <FileClaimDrawer onClose={close} />;
       if (overlay.modal === "new-travel-quote") return <NewApplicationWizard prefill={{ productInterest: "TravelSafe" }} onClose={close} />;
