@@ -1,0 +1,38 @@
+{
+  "project": "lihekcuksskwipkajjyv",
+  "migration": "0074_delete_proposal_pdf",
+  "deletion": [
+    {
+      "passed_rollback_assertions": [
+        "direct deletion returns only owned path, resets proposal decision/status, preserves lifecycle and Replaced history, audits",
+        "stale deleted target rejected",
+        "Agent, inactive Owner, wrong-client and competing-active targets rejected without mutations",
+        "application-owned and non-Lead targets rejected without proposal reset",
+        "direct row removed but shared document bytes not returned for cleanup",
+        "Inbox removal retires status only; original, email, path, filing and captured source remain",
+        "actual Inbox restrictive FK rejects attempted raw deletion and rolls back preceding status reset within subtransaction",
+        "source-backed path alias is retired rather than deleted",
+        "service-role-only SECURITY INVOKER; deletion locks client before document and receipt locks client (definition inspection, not concurrent runtime proof)"
+      ]
+    }
+  ],
+  "replacement": [
+    {
+      "passed_rollback_assertions": [
+        "replacement-first: old PDF retired, new PDF filed with atomic audit/activity, state preserved, stale delete rejected; replay does not duplicate evidence",
+        "delete-first: stale replacement rejects Requested state and creates no active PDF",
+        "fresh receipt after deletion succeeds; a stale deletion cannot reset that receipt or promote historical PDFs",
+        "replacement is SECURITY INVOKER, service-role-only, client-first locked; both serialized outcomes proved sequentially, not with two live connections"
+      ]
+    }
+  ],
+  "limits": [
+    "No safe development database/branch available; no two-connection race executed.",
+    "Restrictive-FK proof uses an attempted direct deletion of a synthetic Inbox original inside a rolled-back subtransaction; the public removal RPC preserves that original."
+  ],
+  "rollbackCleanup": {
+    "qa_clients": 0,
+    "qa_documents": 0,
+    "qa_inbox": 0
+  }
+}

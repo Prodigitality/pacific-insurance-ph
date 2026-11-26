@@ -4866,6 +4866,10 @@ export type Database = {
         Args: { p_actor_id: string; p_document_id: string }
         Returns: Json
       }
+      delete_proposal_pdf: {
+        Args: { p_actor_id: string; p_client_id: string; p_document_id: string }
+        Returns: Json
+      }
       enable_gmail_inbox: {
         Args: { p_actor_id: string; p_input: Json }
         Returns: {
@@ -5539,6 +5543,15 @@ export type Database = {
       }
       renewal_email_due_date: {
         Args: { p_renewal_id: string; p_rule_id: string }
+        Returns: string
+      }
+      replace_proposal_pdf: {
+        Args: {
+          p_actor_id: string
+          p_client_id: string
+          p_name: string
+          p_storage_path: string
+        }
         Returns: string
       }
       requirement_attachment_targets: {

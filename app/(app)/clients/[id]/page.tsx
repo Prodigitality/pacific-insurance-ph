@@ -70,6 +70,7 @@ export default async function ContactProfilePage({
       templates={templates}
       userNames={owner ? { [owner.id]: owner.fullName } : {}}
       agentOptions={agentOptions}
+      canDeleteProposal={toAppRole(actor.role) === "admin"}
       pacificCrossPortalUrl={pacificCross?.portalUrl ?? null}
       origin={from === "prospects" || client.lifecycleStage === "Lead" ? "prospects" : "clients"}
       applications={applications.filter((application) => application.status !== "Lead")}

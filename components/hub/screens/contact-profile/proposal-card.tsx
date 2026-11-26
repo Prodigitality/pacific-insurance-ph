@@ -41,7 +41,7 @@ export function ProposalCard({
   onEmailProposal,
   onRecordDecision,
   onStatusChange,
-  canDeleteProposal = false,
+  canDeleteProposal,
 }: {
   client: Client;
   pacificCrossPortalUrl: string | null;
@@ -57,7 +57,7 @@ export function ProposalCard({
    * Whether the real signed-in user is an Admin/Owner (never the View-as preview). Gates the
    * destructive Delete; the server action and SQL recheck it.
    */
-  canDeleteProposal?: boolean;
+  canDeleteProposal: boolean;
 }) {
   const router = useRouter();
   const overlays = useOverlays();

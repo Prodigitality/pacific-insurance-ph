@@ -55,6 +55,7 @@ interface Props {
   userNames: Record<string, string>;
   /** Team members a real Admin may assign this client to; null for everyone else. */
   agentOptions: AgentOption[] | null;
+  canDeleteProposal: boolean;
   pacificCrossPortalUrl: string | null;
   origin: "clients" | "prospects";
   applications: Application[];
@@ -71,6 +72,7 @@ export function ContactProfile({
   templates,
   userNames,
   agentOptions,
+  canDeleteProposal,
   pacificCrossPortalUrl,
   origin,
   applications,
@@ -264,6 +266,7 @@ export function ContactProfile({
           {isLead && (
             <ProposalCard
               client={proposalClient}
+              canDeleteProposal={canDeleteProposal}
               pacificCrossPortalUrl={pacificCrossPortalUrl}
               proposalDocument={
                 documents.find((d) => d.documentType === "Illustrative Proposal" && d.status !== "Replaced") ?? null

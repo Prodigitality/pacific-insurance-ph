@@ -8,6 +8,53 @@ The new instructions are based on the current implementation and the recorded ve
 [Development Alignment](docs/development-alignment.md). They are not a claim that every scenario
 was rerun while updating this document.
 
+## November 26: Phase L wave one (L11/L12/L13/L16)
+
+Implemented in the integrated tree:
+- Client-page proposal and document links open the authenticated download route in a new tab.
+- Real Admin/Owner only: Delete proposal confirms, resets tracking to Requested, clears the
+  decision, and preserves lifecycle/stage/status. Inbox originals retire as Replaced and remain
+  in historical Documents; direct uploads remove only unshared bytes. Storage cleanup failure
+  returns an explicit partial outcome and refreshes the card. Replacement now shares the
+  client-first transaction lock with deletion and receipt.
+- Column Add lead prefills a validated, editable stage; global New lead stays New Lead / New.
+- Client/document delete, archive/restore and dirty-wizard discard use guarded styled dialogs.
+
+Recorded verification:
+- `npx tsc --noEmit`: passed.
+- `npm test -- --maxWorkers=1`: 46 files / 570 tests passed, including proposal action failures,
+  role/access denials, Inbox preservation, direct cleanup, replacement and post-commit failures.
+- `npm run lint`: failed on the untouched unescaped apostrophe at
+  `components/inbox/correction-control.tsx:167`; 17 warnings. No unrelated lint cleanup.
+- Impeccable changed-file detector: no findings.
+- Hosted `0074_delete_proposal_pdf` applied to `lihekcuksskwipkajjyv`; generated types retained
+  only the two new RPC definitions. Rollback SQL results:
+  [`phase-l-wave-one-sql-evidence.json`](docs/phase-l-wave-one-sql-evidence.json).
+  The FK rollback assertion attempts a raw delete of a synthetic Inbox original; the proposal
+  RPC correctly preserves that original instead. All fixture transactions rolled back; a
+  subsequent query found zero QA clients, documents and Inbox messages.
+- Client-first locking and fresh guards were inspected and both serialized orders exercised.
+  No two-connection runtime race: there is no safe development database/branch.
+- The sole main dev server runs on port 3010. A dedicated Chromium tab requesting `/prospects`
+  reached login; an unauthenticated document download also redirected to login.
+
+**Authenticated browser acceptance remains blocked, not passed.** No saved QA state exists and
+the documented QA account remains Inactive; it was not reactivated. An Admin must restore QA
+access before these synthetic-only scenarios can run, then deactivate that account afterward:
+1. Proposal and ordinary document open separate tabs without changing the profile; associated
+   record navigation stays in the current tab. Missing/foreign files retain route refusal.
+2. Open Add lead from all six columns, edit the stage, close/reopen from another column, then
+   use global New lead. Verify New status, no stale prefill; create one Discovery lead and remove it.
+3. Client/document Delete: Cancel/Escape send no mutation; confirmation, Enter and rapid clicks
+   submit exactly once with pending/errors preserved. Archive/restore changes list visibility.
+4. Dirty wizard: Escape opens one confirmation; another Escape cancels without closing or losing
+   data. Backdrop/footer obey the same guard. Discard closes; clean close never prompts. No native dialog.
+5. Admin proposal PDF: cancel unchanged; confirm removes the active PDF, shows Requested after
+   refresh with no uploaded-state ghost, removes direct Storage bytes and records evidence.
+   Re-upload works; real Staff/Agent see no Delete and direct deletion refuses.
+6. Do not create lasting Inbox fixtures on production. Use the retained rollback evidence for
+   Inbox retirement and deterministic action mocks for Storage-removal failure.
+
 ## November 4: real Gmail sending and replies
 
 Prerequisites: schema through `0059`, a connected `admin@pacificinsuranceph.com` with the send

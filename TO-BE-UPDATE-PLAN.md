@@ -2715,3 +2715,21 @@ custom SMTP (DJ6, deferred in J5). Lower-priority cleanup findings remain in the
 |L6 clarification|Open. The reference is Travel Insurance's requirements and documents styling.|Match the normal six-step Application workflow's Requirements and documents components to Travel Insurance. This clarifies the existing L6 task rather than adding a duplicate. Preserve application-specific requirements, statuses and workflow behavior.|
 |L18 — Client policy product names|Partial. The client profile's Policies card already shows product and plan names; the Clients list does not show policy product names.|Show the product names from the client's policies in the Clients list. Support multiple policies without substituting the lead-only `Product interest` field; retain the existing profile display.|
 |L19 — Upcoming renewal date filters|Partial. Active policies already generate renewal rows, with upcoming/overdue tracking independent of carrier notice receipt.|Add date-range and specific-month filters to the Renewals page using the renewal due date. Upcoming renewals must remain visible before a carrier notice is received; retain the existing status filters and due-date sorting.|
+
+### Phase L first wave — implementation and verification (2026-11-26)
+
+L11, L12, L13 and L16 are implemented and integrated; **authenticated browser acceptance is
+still blocked**, so this wave is not recorded as fully verified.
+
+- L12: authenticated client-page document/proposal links open new tabs; record links unchanged.
+- L13: column-specific, validated editable stage prefill; global New Lead / New defaults retained.
+- L16: styled, duplicate-guarded confirmations; React form action context and wizard Escape guarded.
+- L11 / DL9: real Admin/Owner permission, client-first atomic removal/reset with retained Inbox
+  originals; explicit Storage-cleanup partial failure. Replacement uses the same client lock.
+  Hosted migration `0074_delete_proposal_pdf` applied; both RPC types regenerated.
+- TypeScript passed; 570 tests passed. Lint has one error in untouched
+  `components/inbox/correction-control.tsx:167` (unescaped apostrophe), plus 17 warnings.
+- Rollback SQL and both sequential serialized outcomes passed; no lasting fixtures.
+  No two-connection race was run without a safe development database.
+- The QA account is still Inactive, saved auth is absent, and `/prospects` redirects to login.
+  No account was reactivated. Remaining browser scenarios and SQL evidence are in `TESTING.md`.
