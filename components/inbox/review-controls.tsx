@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, Check, Download, FileCheck2, Link2 } from "lucide-react";
 import { fileInboxAttachmentAction, linkInboxMessageAction } from "@/app/(app)/inbox/actions";
 import { INPUT } from "@/components/hub/primitives";
+import { isPacificCrossNotice, PACIFIC_CROSS_NOTICE_LABEL } from "@/lib/gmail/matching";
 import type { InboxReviewData } from "@/lib/gmail/review";
 import type { FilingPurpose, InboxAttachment, InboxMessage } from "@/lib/repositories/inbox/inbox.entity";
 
@@ -38,6 +39,7 @@ export function LinkMessageControl({ data, message }: { data: InboxReviewData; m
   }
   return <section aria-labelledby="link-heading" className="rounded-lg border border-amber-border bg-amber-soft/50 p-4">
     <h3 id="link-heading" className="flex items-center gap-2 text-sm font-bold"><Link2 size={16} className="text-amber" aria-hidden="true" />Link this email to a record</h3>
+    {isPacificCrossNotice(message.fromAddress) && <p className="mt-2"><span className="inline-flex items-center rounded border border-blue-border bg-blue-soft px-1.5 py-0.5 text-[11px] font-semibold text-blue">{PACIFIC_CROSS_NOTICE_LABEL}</span><span className="ml-2 text-[11px] text-muted-foreground">Automated insurer notice. Nothing is linked or filed until you confirm a record.</span></p>}
     <p className="mt-1 text-xs leading-relaxed text-muted-foreground">Confirm which record this whole email is about. Linking makes the email and its originals visible to users authorized for that client and adds one Received communication. It does not complete checklist requirements or change the record’s status.</p>
     {data.suggestions.length > 0 && <div className="mt-4 space-y-2"><p className="text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">Suggestions · confirmation required</p>{data.suggestions.map((suggestion) => <div key={`${suggestion.target.kind}:${suggestion.target.id}`} className="rounded-md border border-border bg-card p-3"><button type="button" disabled={pending} onClick={() => { setTargetKey(`${suggestion.target.kind}:${suggestion.target.id}`); setQuery(""); }} className="break-words text-left text-xs font-semibold text-brand-hover underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring">{suggestion.target.kind} · {suggestion.target.label} · {suggestion.target.status}</button><p className="mt-1 text-[11px] text-muted-foreground">{suggestion.reasons.join(" · ")}</p>{suggestion.warnings.map((warning) => <p key={warning} className="mt-1 flex items-start gap-1.5 text-[11px] leading-relaxed text-amber"><AlertTriangle size={12} className="mt-0.5 shrink-0" aria-hidden="true" />{warning}</p>)}</div>)}</div>}
     <form className="mt-4 space-y-3" onSubmit={(event) => { event.preventDefault(); linkMessage(); }}>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractCrmReferences, suggestInboxTargets } from "./matching";
+import { extractCrmReferences, isPacificCrossNotice, suggestInboxTargets } from "./matching";
 import type { InboxTarget } from "@/lib/repositories/inbox/inbox.entity";
 
 const target = (id: string, clientId = "client-a", kind: InboxTarget["kind"] = "application"): InboxTarget => ({
@@ -64,5 +64,51 @@ describe("incoming correspondence matching", () => {
   it("never invents a match for an unrelated sender or duplicates a thread target", () => {
     expect(suggestInboxTargets({ ...message, subject: "Hello", fromAddress: "other@example.com" }, [target("00001")])).toEqual([]);
     expect(suggestInboxTargets(message, [target("00001")], target("00001"))).toHaveLength(1);
+  });
+});
+
+describe("Pacific Cross notice flag", () => {
+  const notice = { ...message, fromAddress: "noreply-pacific@pacificcross.ph", subject: "Renewal notice", bodyText: "Policy PC.123/45 is due." };
+  const policy: InboxTarget = { ...target("policy", "client-a", "policy"), label: "POL-2026-00001 · PC.123/45 · Ada Santos" };
+
+  it("recognizes the exact insurer mailbox in bare, display-name and mixed-case forms", () => {
+    expect(isPacificCrossNotice("noreply-pacific@pacificcross.ph")).toBe(true);
+    expect(isPacificCrossNotice("  NoReply-Pacific@PacificCross.PH ")).toBe(true);
+    expect(isPacificCrossNotice("Pacific Cross <noreply-pacific@pacificcross.ph>")).toBe(true);
+    expect(isPacificCrossNotice('"Pacific Cross, PH" <NOREPLY-PACIFIC@pacificcross.ph> ')).toBe(true);
+  });
+  it("rejects lookalikes, other senders of the same domain and empty input", () => {
+    expect(isPacificCrossNotice("noreply-pacific@pacificcross.ph.evil.com")).toBe(false);
+    expect(isPacificCrossNotice("xnoreply-pacific@pacificcross.ph")).toBe(false);
+    expect(isPacificCrossNotice("noreply-pacific@pacificcross.phx")).toBe(false);
+    expect(isPacificCrossNotice("no-reply@pacificcross.ph")).toBe(false);
+    expect(isPacificCrossNotice("claims@pacificcross.ph")).toBe(false);
+    expect(isPacificCrossNotice("Pacific Cross <noreply-pacific@pacificcross.ph> <evil@example.com>")).toBe(false);
+    expect(isPacificCrossNotice("")).toBe(false);
+    expect(isPacificCrossNotice(null)).toBe(false);
+    expect(isPacificCrossNotice(undefined)).toBe(false);
+  });
+  it("flags a notice that matches a recorded policy number, with the insurer warning instead of the participant one", () => {
+    const [result] = suggestInboxTargets(notice, [policy]);
+    expect(result.target.id).toBe(policy.id);
+    expect(result.requiresReview).toBe(true);
+    expect(result.reasons).toEqual(["Exact record reference in message", "Pacific Cross notice (insurer no-reply)"]);
+    expect(result.warnings).toContain("Automated insurer notice — confirm the policyholder before linking.");
+    expect(result.warnings.join(" ")).not.toContain("not a recorded participant");
+    expect(result.consistent).toBe(false);
+  });
+  it("keeps every other warning on a notice", () => {
+    const [result] = suggestInboxTargets({ ...notice, isAutoReply: true, bodyText: "Policy PC.123/45 and CLI-2026-99999" }, [policy]);
+    expect(result.warnings.join(" ")).toContain("outside the available target list");
+    expect(result.warnings.join(" ")).toContain("Automatic reply");
+  });
+  it("never guesses a record for a notice without a reference match", () => {
+    expect(suggestInboxTargets({ ...notice, bodyText: "Your policy is due for renewal." }, [policy, target("00001")])).toEqual([]);
+  });
+  it("leaves non-notice messages unchanged", () => {
+    const [result] = suggestInboxTargets({ ...notice, fromAddress: "other@example.com" }, [policy]);
+    expect(result.reasons).toEqual(["Exact record reference in message"]);
+    expect(result.warnings.join(" ")).toContain("not a recorded participant");
+    expect(result.warnings).not.toContain("Automated insurer notice — confirm the policyholder before linking.");
   });
 });

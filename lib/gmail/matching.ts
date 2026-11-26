@@ -16,6 +16,19 @@ export function extractCrmReferences(text: string): string[] {
   return [...new Set((text.toUpperCase().match(/\b[A-Z]{2,8}-\d{4}-\d{4,8}\b/g) ?? []))];
 }
 
+/** The one insurer no-reply mailbox whose notices are flagged. Exact mailbox only: no domain wildcard. */
+export const PACIFIC_CROSS_NOTICE_SENDER = "noreply-pacific@pacificcross.ph";
+export const PACIFIC_CROSS_NOTICE_LABEL = "Pacific Cross notice";
+const PACIFIC_CROSS_NOTICE_REASON = "Pacific Cross notice (insurer no-reply)";
+const PACIFIC_CROSS_NOTICE_WARNING = "Automated insurer notice — confirm the policyholder before linking.";
+
+/** True when the sender is exactly the Pacific Cross no-reply mailbox (bare or `Name <address>` form, any case). */
+export function isPacificCrossNotice(fromAddress: string | null | undefined): boolean {
+  if (!fromAddress) return false;
+  const angled = /<([^<>]*)>\s*$/.exec(fromAddress);
+  return (angled ? angled[1] : fromAddress).trim().toLowerCase() === PACIFIC_CROSS_NOTICE_SENDER;
+}
+
 function key(target: InboxTarget): string { return `${target.kind}:${target.id}`; }
 function participantsMatch(message: MatchMessage, target: InboxTarget): boolean {
   // A recipient alone is not proof that the external sender is an expected participant.
@@ -37,6 +50,7 @@ export function suggestInboxTargets(
   threadTarget: InboxTarget | null = null,
 ): MatchSuggestion[] {
   const messageText = `${message.subject}\n${message.bodyText}`;
+  const insurerNotice = isPacificCrossNotice(message.fromAddress);
   const refs = extractCrmReferences(messageText);
   const unique = new Map(targets.map((target) => [key(target), target]));
   if (threadTarget) unique.set(key(threadTarget), threadTarget);
@@ -56,8 +70,9 @@ export function suggestInboxTargets(
     if (established) reasons.push("Previously linked Gmail thread");
     if (exactReference) reasons.push("Exact record reference in message");
     if (expectedSender) reasons.push("Sender matches a recorded participant");
+    if (insurerNotice) reasons.push(PACIFIC_CROSS_NOTICE_REASON);
     const warnings: string[] = [];
-    if (!expectedSender) warnings.push("Sender is not a recorded participant. Confirm their identity independently.");
+    if (!expectedSender) warnings.push(insurerNotice ? PACIFIC_CROSS_NOTICE_WARNING : "Sender is not a recorded participant. Confirm their identity independently.");
     if (referencedClients.size > 1 || (referencedClients.size === 1 && !referencedClients.has(target.clientId)))
       warnings.push("Message references another client or multiple clients.");
     if (referenceMatches.some((item) => item.clientId === target.clientId && key(item) !== key(target) && item.kind !== "client" && target.kind !== "client"))
