@@ -78,22 +78,39 @@ export function ContactProfile({
 }: Props) {
   const overlays = useOverlays();
   const router = useRouter();
-  const [, startArchive] = useTransition();
+  const [archivePending, startArchive] = useTransition();
+  const archiveInFlightRef = useRef(false);
 
-  const toggleArchive = () => {
+  const toggleArchive = async () => {
+    if (archivePending || archiveInFlightRef.current) return;
+    archiveInFlightRef.current = true;
     const archiving = client.status !== "Archived";
-    const ok = window.confirm(
-      archiving
-        ? `Archive ${client.fullName}? They will be hidden from active lists, pickers and counts, but stay searchable. You can restore them any time.`
-        : `Restore ${client.fullName} to the active client list?`,
-    );
-    if (!ok) return;
-    startArchive(async () => {
-      const res = archiving ? await archiveClientAction(client.id) : await restoreClientAction(client.id);
-      if (!res.ok) return overlays.toast(archiving ? "Couldn’t archive client" : "Couldn’t restore client", res.error);
-      overlays.toast(archiving ? "Client archived" : "Client restored", client.fullName);
-      router.refresh();
-    });
+    let started = false;
+    try {
+      const confirmed = await overlays.confirm({
+        kind: archiving ? "danger" : "warn",
+        title: archiving ? "Archive client?" : "Restore client?",
+        message: archiving
+          ? `Archive ${client.fullName}? They will be hidden from active lists, pickers and counts, but stay searchable. You can restore them any time.`
+          : `Restore ${client.fullName} to the active client list?`,
+        confirmLabel: archiving ? "Archive" : "Restore",
+        cancelLabel: "Cancel",
+      });
+      if (!confirmed) return;
+      startArchive(async () => {
+        try {
+          const res = archiving ? await archiveClientAction(client.id) : await restoreClientAction(client.id);
+          if (!res.ok) return overlays.toast(archiving ? "Couldn’t archive client" : "Couldn’t restore client", res.error);
+          overlays.toast(archiving ? "Client archived" : "Client restored", client.fullName);
+          router.refresh();
+        } finally {
+          archiveInFlightRef.current = false;
+        }
+      });
+      started = true;
+    } finally {
+      if (!started) archiveInFlightRef.current = false;
+    }
   };
 
   const isLead = client.lifecycleStage === "Lead";

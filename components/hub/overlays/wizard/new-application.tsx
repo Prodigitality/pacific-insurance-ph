@@ -122,6 +122,7 @@ export function NewApplicationWizard({
   const [completed, setCompleted] = useState<ReadonlySet<number>>(() => new Set());
   const [splitOpen, setSplitOpen] = useState(false);
   const dirtyRef = useRef(false);
+  const confirmationInFlightRef = useRef(false);
   // The step body scrolls; it is reset on a step change so a step never opens mid-page.
   const bodyRef = useRef<HTMLDivElement>(null);
   // Set once Create (or a "Still needed" chip) is pressed while blocked: from then on every
@@ -388,19 +389,37 @@ export function NewApplicationWizard({
     f.category !== "travel" &&
     templatePreview?.key !== `${f.productVersionId}:${f.remoteSale}`;
 
-  // Escape / backdrop close with dirty confirm (design requestClose).
-  const requestClose = () => {
-    if (dirtyRef.current && !window.confirm("Discard this application draft? Nothing has been saved.")) return;
-    onClose();
-  };
+  // Keep the ref set until the dialog promise settles: both document key listeners
+  // receive the cancelling Escape before its promise continuation runs.
+  const requestClose = useCallback(async () => {
+    if (confirmationInFlightRef.current) return;
+    if (!dirtyRef.current) {
+      onClose();
+      return;
+    }
+    confirmationInFlightRef.current = true;
+    try {
+      const confirmed = await overlays.confirm({
+        kind: "danger",
+        title: "Discard application draft?",
+        message: "Discard this application draft? Nothing has been saved.",
+        confirmLabel: "Discard",
+        cancelLabel: "Cancel",
+      });
+      if (confirmed) onClose();
+    } finally {
+      confirmationInFlightRef.current = false;
+    }
+  }, [onClose, overlays]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") requestClose();
+      if (e.key !== "Escape" || e.defaultPrevented || confirmationInFlightRef.current) return;
+      e.preventDefault();
+      void requestClose();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- requestClose reads refs only
-  }, []);
+  }, [requestClose]);
 
   // Derived initial status (design): an inquiry stays a Lead; entering identity
   // or picking a product makes the record an Applicant.
@@ -514,21 +533,28 @@ export function NewApplicationWizard({
   };
 
   const finish = async (mode: WizardMode) => {
+    if (pending || confirmationInFlightRef.current) return;
     // Travel (H6b): reserve the portal pop-up inside the click, before any await — pop-up
     // blockers only allow opens tied to the gesture. It is pointed at the portal on success.
     const portal = isTravel && mode !== "draft" ? openPortalWindow() : null;
     const changedFields = changedAutoFilledFields();
     if (changedFields.length > 0) {
-      const confirmed = await overlays.confirm({
-        title: "Save changes to linked lead?",
-        message: (
-          <>
-            You changed {changedFields.map((field) => AUTO_FILLED_LABEL[field]).join(", ")}. Saving will update the linked lead/client record.
-          </>
-        ),
-        confirmLabel: "Save changes",
-        cancelLabel: "Review changes",
-      });
+      confirmationInFlightRef.current = true;
+      let confirmed: boolean;
+      try {
+        confirmed = await overlays.confirm({
+          title: "Save changes to linked lead?",
+          message: (
+            <>
+              You changed {changedFields.map((field) => AUTO_FILLED_LABEL[field]).join(", ")}. Saving will update the linked lead/client record.
+            </>
+          ),
+          confirmLabel: "Save changes",
+          cancelLabel: "Review changes",
+        });
+      } finally {
+        confirmationInFlightRef.current = false;
+      }
       if (!confirmed) {
         portal?.close();
         return;
