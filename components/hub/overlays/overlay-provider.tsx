@@ -68,6 +68,8 @@ export type OverlayState =
   | { kind: "campaign"; presetType?: string }
   | { kind: "command-palette" }
   | { kind: "application-requirements"; applicationId: string }
+  /** L7: a saved wizard application, before its Requirements workflow opens. */
+  | { kind: "application-created"; applicationId: string }
   | { kind: "claim-requirements"; claimId: string }
   | { kind: "travel-workflow"; travelRequestId: string };
 

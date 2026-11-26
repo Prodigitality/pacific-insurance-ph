@@ -615,13 +615,15 @@ export function NewApplicationWizard({
         router.refresh();
         if (res.data.groupId) router.push(`/group/${res.data.groupId}`);
         onClose();
-        // H3a: land on the application's full requirement set instead of making the user find
-        // "Continue Application" on the client — after the email review when one was composed.
+        // H3a/L7: continue to the application's full requirement set instead of making the user
+        // find "Continue Application" on the client, but through the saved-application step first:
+        // the workflow's own "Step 1 of 6" otherwise reads as this wizard restarting. After the
+        // email review when one was composed; a draft or a missing ID opens nothing.
         const applicationId = mode !== "draft" && !res.data.travelRequestId ? res.data.applicationId : undefined;
-        const openChecklist = () => { if (applicationId) overlays.openApplicationRequirements(applicationId); };
-        if (applicationId && reviewEmail({ label: "Continue to checklist", open: openChecklist })) return;
+        const openCreated = () => { if (applicationId) overlays.open({ kind: "application-created", applicationId }); };
+        if (applicationId && reviewEmail({ label: "Continue to requirements", open: openCreated })) return;
         overlays.toast(title, res.data.summary + attachmentSummary);
-        openChecklist();
+        openCreated();
       } else {
         portal?.close();
         overlays.toast("Couldn’t create the application", res.error);
