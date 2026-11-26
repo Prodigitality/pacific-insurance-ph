@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useId, useMemo, useState } from "react";
 
 import { listOptionalLibraryDocumentsAction } from "@/app/(app)/clients/engage-actions";
 import { EmailAttachmentChoices } from "@/components/email/email-attachment-choices";
@@ -10,6 +10,7 @@ import {
   SENDER_MAILBOX,
   type EmailDraftSeed, type EmailOrigin, type EmailRecordKind, type EmailSendView,
 } from "@/lib/communications/outbound-email.types";
+import { missingRecipientHint } from "@/lib/communications/recipient-hint";
 import type { EmailTemplate } from "@/lib/repositories/templates/email-template.entity";
 import { fillTemplate, pesoMerge, type MergeContext } from "@/lib/templates/merge";
 import { I } from "../icons";
@@ -30,6 +31,9 @@ import { OptionalLibraryAttachments } from "./optional-library-attachments";
  * (`engage.tsx`'s callers, which do). Sending goes through the shared review → send control:
  * nothing is sent until staff review the final email and click Send.
  */
+
+/** Template the Send Renewal Notice action opens with (`ENGAGE_ACTIONS` in `./engage.tsx`). */
+const RENEWAL_REMINDER_TEMPLATE = "Renewal reminder";
 
 /** Who the email is to, plus the merge-field context (product/premium) and send target. */
 export interface EmailTarget {
@@ -137,6 +141,10 @@ export function EmailForm({
 
   const needsRequired = templateNeedsLibraryAttachment(tpl);
   const ready = !!recipient.trim() && !!subject.trim() && (!needsRequired || !!requiredLibraryDocumentId);
+  const recipientHintId = useId();
+  const recipientHint = missingRecipientHint({ recipient, contactEmail: target.email, contactName: target.name, locked: recipientLocked });
+  // The renewal reminder is where the carrier's notice is attached, by upload or from a linked Inbox email.
+  const renewalNotice = tpl === RENEWAL_REMINDER_TEMPLATE;
 
   const draft = useMemo<EmailDraftSeed>(
     () => ({
@@ -172,11 +180,15 @@ export function EmailForm({
           ))}
         </select>
       </Field>
-      <Field label="Recipient" required>
-        <input className={INPUT} type="email" value={recipient} readOnly={recipientLocked}
-          title={recipientLocked ? "Sent to the selected Pacific Cross contact." : undefined}
-          onChange={(e) => setRecipient(e.target.value)} placeholder="name@email.com" />
-      </Field>
+      <div>
+        <Field label="Recipient" required>
+          <input className={INPUT} type="email" value={recipient} readOnly={recipientLocked}
+            title={recipientLocked ? "Sent to the selected Pacific Cross contact." : undefined}
+            aria-describedby={recipientHint ? recipientHintId : undefined}
+            onChange={(e) => setRecipient(e.target.value)} placeholder="name@email.com" />
+        </Field>
+        {recipientHint && <p id={recipientHintId} role="status" className="mt-1 flex items-center gap-1 text-[11.5px] font-semibold text-amber"><I.alertTri size={12} aria-hidden className="shrink-0" /> {recipientHint}</p>}
+      </div>
     </div>
   );
   const subjectField = (
@@ -210,6 +222,7 @@ export function EmailForm({
         emailAttachments={emailAttachments}
         onEmailAttachments={setEmailAttachments}
         lockedDocumentIds={lockedDocumentIds}
+        renewalNotice={renewalNotice}
       />
     </>
   ) : null;
@@ -257,7 +270,7 @@ export function EmailForm({
       </div>
       {attachments && (
         // Opens on its own when the template needs a carrier file, so the red notice below points at something visible.
-        <details open={needsRequired && !requiredLibraryDocumentId ? true : undefined} className="group mt-3.5 rounded-md border border-border-soft">
+        <details open={(needsRequired && !requiredLibraryDocumentId) || renewalNotice ? true : undefined} className="group mt-3.5 rounded-md border border-border-soft">
           <summary className="flex cursor-pointer list-none items-center gap-2 px-3.5 py-2.5 text-[12.5px] font-semibold [&::-webkit-details-marker]:hidden">
             <I.chevRight size={14} className="transition-transform group-open:rotate-90" /> Attachments
             <span className="font-normal text-subtle">{attachmentCount ? `${attachmentCount} selected` : "None selected"}</span>

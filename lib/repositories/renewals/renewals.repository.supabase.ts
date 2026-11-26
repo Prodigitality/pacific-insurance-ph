@@ -12,7 +12,7 @@ type RenewalPatch = Database["public"]["Tables"]["renewals"]["Update"];
 
 /** Row plus the joined display names/refs the lists render. */
 type JoinedRow = RenewalRow & {
-  clients: { first_name: string; last_name: string } | null;
+  clients: { first_name: string; last_name: string; email: string | null } | null;
   policies: {
     reference_no: string | null;
     policy_number: string | null;
@@ -22,7 +22,7 @@ type JoinedRow = RenewalRow & {
 };
 
 const SELECT = `*,
-  clients (first_name, last_name),
+  clients (first_name, last_name, email),
   policies (reference_no, policy_number, premium_amount, currency)`;
 
 function toDomain(row: JoinedRow): Renewal {
@@ -34,6 +34,7 @@ function toDomain(row: JoinedRow): Renewal {
     clientName: row.clients
       ? [row.clients.first_name, row.clients.last_name].filter(Boolean).join(" ")
       : null,
+    clientEmail: row.clients?.email?.trim() || null,
     policyRef: row.policies?.reference_no ?? null,
     policyNumber: row.policies?.policy_number ?? null,
     premiumAmount: row.policies?.premium_amount ?? null,

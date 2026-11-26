@@ -345,6 +345,7 @@ export function RenewalsLive({ rows, noticeRequestOffsetDays, canSyncPolicies }:
     overlays.openEngage("Send Renewal Notice", {
       clientId: r.clientId,
       name: r.clientName ?? "Client",
+      email: r.clientEmail,
       premium: r.premiumAmount,
       product: r.policyRef,
       record: { kind: "renewal", id: r.id },

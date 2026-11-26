@@ -10,6 +10,8 @@ export interface Renewal {
   clientId: string;
   /** Joined convenience: client's full name. */
   clientName: string | null;
+  /** Joined convenience: client's email on record, to prefill the renewal notice recipient. */
+  clientEmail: string | null;
   /** Joined convenience: linked policy's reference number. */
   policyRef: string | null;
   /** Joined convenience: linked policy's policy number. */

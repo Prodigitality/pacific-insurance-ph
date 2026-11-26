@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { listRequirementEmailAttachmentsAction } from "@/app/(app)/documents/requirement-attachment-actions";
+import { registerEmailAttachmentUploadAction } from "@/app/(app)/email/attachment-upload-actions";
 import { listEmailDocumentsAction } from "@/app/(app)/email/actions";
+import { PdfUpload } from "@/components/documents/pdf-upload";
 import type { EmailDocumentOption } from "@/lib/communications/outbound-email.types";
 import type { RequirementEmailAttachment } from "@/lib/documents/requirement-attachment.types";
 import { I } from "@/components/hub/icons";
-import { formatBytes } from "./email-send-controls";
 
 type EmailOriginal = { messageId: string; partId: string };
 
@@ -22,6 +23,7 @@ export function EmailAttachmentChoices({
   emailAttachments,
   onEmailAttachments,
   lockedDocumentIds = [],
+  renewalNotice = false,
 }: {
   clientId: string;
   documentIds: string[];
@@ -30,8 +32,16 @@ export function EmailAttachmentChoices({
   onEmailAttachments: (items: EmailOriginal[]) => void;
   /** Preselected by the workflow (e.g. the current proposal); shown checked and not removable. */
   lockedDocumentIds?: string[];
+  /**
+   * The renewal reminder: opens the section, titles the Inbox group "From Inbox emails" and files
+   * an uploaded PDF as a "Renewal Notice" document.
+   */
+  renewalNotice?: boolean;
 }) {
-  const [open, setOpen] = useState(documentIds.length > 0 || emailAttachments.length > 0);
+  const [open, setOpen] = useState(documentIds.length > 0 || emailAttachments.length > 0 || renewalNotice);
+  // The upload resolves after an await; read the selection as it is then, not as it was at click time.
+  const documentIdsRef = useRef(documentIds);
+  documentIdsRef.current = documentIds;
   const [documents, setDocuments] = useState<EmailDocumentOption[] | null>(null);
   const [originals, setOriginals] = useState<RequirementEmailAttachment[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -83,9 +93,24 @@ export function EmailAttachmentChoices({
               </ul>
             )}
           </fieldset>
+          <div>
+            <PdfUpload
+              clientId={clientId}
+              disabled={documents === null}
+              prompt={renewalNotice ? "Upload the renewal notice (PDF, up to 25 MB)…" : "Upload a PDF to attach (up to 25 MB)…"}
+              onUploaded={async (path, fileName) => {
+                const res = await registerEmailAttachmentUploadAction(clientId, path, fileName, renewalNotice);
+                if (res.ok) {
+                  setDocuments((current) => [res.data, ...(current ?? []).filter((doc) => doc.id !== res.data.id)]);
+                  onDocumentIds(Array.from(new Set([...documentIdsRef.current, res.data.id])));
+                }
+                return res;
+              }}
+            />
+          </div>
           <fieldset>
-            <legend className="mb-1 text-[11px] font-bold uppercase tracking-[0.05em] text-subtle">Email attachments released to this client</legend>
-            {originals === null ? <p className="text-subtle">Loading…</p> : originals.length === 0 ? <p className="text-subtle">No released email attachments.</p> : (
+            <legend className="mb-1 text-[11px] font-bold uppercase tracking-[0.05em] text-subtle">{renewalNotice ? "From Inbox emails" : "Email attachments released to this client"}</legend>
+            {originals === null ? <p className="text-subtle">Loading…</p> : originals.length === 0 ? <p className="text-subtle">{renewalNotice ? "No Inbox attachment is linked to this client yet. To attach a Pacific Cross notice from email, first link that message to this client in the Inbox (Record from Inbox), or upload the notice above." : "No released email attachments."}</p> : (
               <ul className="max-h-48 space-y-1 overflow-auto">
                 {originals.map((item) => (
                   <li key={`${item.messageId}:${item.partId}`}>
