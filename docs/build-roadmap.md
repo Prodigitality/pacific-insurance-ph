@@ -9,7 +9,7 @@
 | Area | Current state |
 | :--- | :--- |
 | Application | Next.js App Router application with dedicated routes for the operational modules |
-| Data | Supabase repositories and server actions; migrations through `0064` applied to the hosted project, with genuine hosted schema types. Exact versions and verification are in `development-alignment.md`. `0041` remains reserved for import. |
+| Data | Supabase repositories and server actions; migrations through `0075` applied to the hosted project, with genuine hosted RPC types. Exact versions and verification are in `development-alignment.md`. `0041` remains reserved for import. |
 | Authentication | Supabase Auth with protected routes and application roles |
 | Storage | Private Supabase buckets for client documents and the carrier library |
 | Communications | Gmail reading/push synchronization and the shared checklist picker plus non-disruptive Inbox freshness are released. Deployment `dpl_5N4uyzXopqKPdGTNics94c3D1KTi` is READY on the canonical production hostname, with authenticated HTTP/Storage acceptance. Outgoing composers still log rather than deliver email. |
@@ -72,6 +72,15 @@ historical. They no longer describe this repository.
 - Tasks, documents, renewals, claims, travel, relationship management, email templates, and
   settings screens at varying levels of live-data completeness.
 
+## November 26: Phase L second wave
+
+L7 saved-application transition, L10/DL8 atomic Admin-only checklist attachment removal, and
+L15 frozen identity columns are integrated. Hosted `0075` and the new RPC type are applied;
+TypeScript, 48 files / 599 tests and rollback SQL assertions pass. Lint retains the known
+untouched apostrophe error. Authenticated browser acceptance remains pending: QA account is
+Active/Owner, but saved auth and local QA credentials are absent. No account change, email,
+Storage mutation, paid branch, push or web deployment. See [manual acceptance](../TESTING.md).
+
 ## Important limits
 
 - **No outbound delivery is enabled.** Gmail connection management is implemented separately;
@@ -103,7 +112,7 @@ historical. They no longer describe this repository.
 2. After applying a migration to Supabase, regenerate `lib/supabase/types.ts`.
 3. Put entity access behind `lib/repositories/`; use server actions for mutations.
 4. Keep service-role credentials server-only and preserve audit/timeline writes.
-5. The next local migration number is **`0065`**; verify source files and the hosted ledger before use. **`0041`** remains reserved for the import schema.
+5. The next local migration number is **`0076`**; verify source files and the hosted ledger before use. **`0041`** remains reserved for the import schema.
 6. Verify remote migration state before claiming a feature is deployed. Source files alone do not
    prove a migration was applied.
 

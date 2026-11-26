@@ -4870,6 +4870,10 @@ export type Database = {
         Args: { p_actor_id: string; p_client_id: string; p_document_id: string }
         Returns: Json
       }
+      detach_requirement_attachment: {
+        Args: { p_actor_id: string; p_document_id: string; p_target: Json }
+        Returns: Json
+      }
       enable_gmail_inbox: {
         Args: { p_actor_id: string; p_input: Json }
         Returns: {

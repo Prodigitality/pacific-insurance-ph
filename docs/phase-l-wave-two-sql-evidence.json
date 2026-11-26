@@ -1,0 +1,56 @@
+{
+  "recorded_on": "2026-11-26",
+  "project_ref": "lihekcuksskwipkajjyv",
+  "migration": {
+    "name": "0075_requirement_attachment_removal",
+    "hosted_version": "20261126072729",
+    "apply_result": { "success": true },
+    "rpc": "public.detach_requirement_attachment(uuid,jsonb,uuid)",
+    "security_definer": false,
+    "search_path": "",
+    "execute": { "anon": false, "authenticated": false, "service_role": true }
+  },
+  "execution": {
+    "method": "Supabase MCP execute_sql, entire BEGIN/ROLLBACK script on one connection",
+    "initial_fixture_error": "42P16: constraints on temporary tables may reference only temporary tables",
+    "fixture_correction": "A private qa_l10_rollback_fixture schema and restrictive-FK table were created inside the rollback transaction instead; production protections were not changed.",
+    "corrected_script_completed_without_assertion_error": true,
+    "script_terminal_result": {
+      "concurrency_limit": "No two-connection runtime race executed; coordinator must report this limitation."
+    },
+    "assertions_exercised": [
+      "All Pending/Incomplete/Received/Verified statuses on Application, Claim and Travel checklist targets",
+      "Received/Verified reset to Pending despite another attachment remaining; Pending/Incomplete retained",
+      "Returned unshared upload path, selected-row deletion and preservation of other files",
+      "Audit exact target, document, prior/new status and preservation outcome",
+      "Stale replay, wrong/foreign/missing record or requirement, malformed UUID and invalid kind rejected without removal audit",
+      "Active Admin and Owner allowed; Assistant, Viewer and inactive Admin denied",
+      "Submitted/approved application, submitted claim, issued Travel, policy and verified collection evidence retained",
+      "Restrictive FK failure rolls back deletion, receipt reset, generic/removal audit and medical-review invalidation",
+      "Successful medical attachment removal invalidates clearance while retaining medical class and lifecycle",
+      "Shared direct-upload bytes do not return a cleanup path",
+      "Modern upload intent retired; receive retry cannot resurrect a removed upload",
+      "Inbox original loses only checklist association; source, filing, email, communication, identity, path and usage elsewhere remain",
+      "Supplementary Inbox usage can be removed while original/source/email/shared bytes remain"
+    ],
+    "post_rollback_query_result": {
+      "tagged_clients": 0,
+      "tagged_auth_users": 0,
+      "tagged_documents": 0,
+      "fixture_schemas": 0
+    },
+    "storage_operations": false,
+    "gmail_calls": false,
+    "two_connection_runtime_race": false,
+    "lock_order_source_review": "client -> concrete target via lock_gmail_inbox_target -> exact requirement -> selected document; receipt uses the same client/target/requirement serialization"
+  },
+  "security_advisors": {
+    "categories_levels_and_counts_unchanged": true,
+    "existing_warnings": ["auth_otp_long_expiry", "auth_leaked_password_protection"]
+  },
+  "limits": [
+    "SQL proves metadata transactions and guards, not physical Storage deletion or Gmail delivery",
+    "No safe development database was available for a two-connection race",
+    "Authenticated L7/L10/L15 browser acceptance remains pending; localhost /applications redirected to login"
+  ]
+}

@@ -8,6 +8,63 @@ The new instructions are based on the current implementation and the recorded ve
 [Development Alignment](docs/development-alignment.md). They are not a claim that every scenario
 was rerun while updating this document.
 
+## November 26: Phase L wave two (L7/L10/L15)
+
+Implemented and integrated; **authenticated browser acceptance is pending**.
+
+- L7: completed non-Travel wizard creation opens **Application created** before Requirements.
+  **Begin requirements** opens the saved application's workflow without creating again.
+  Optional reviewed email still precedes the transition; draft saves and Travel keep their paths.
+- L10 / DL8: lazy **Attachments** lists authorized checklist files. Real active Admin/Owner
+  removal confirms, atomically detaches and resets Received/Verified to Pending; Pending and
+  Incomplete remain unchanged. Inbox email/original/source identities remain; only unshared
+  direct-upload paths are eligible for byte cleanup. A cleanup failure returns committed removal
+  with a warning. Application/Claim status picks are invalidated; Travel refreshes only checklist
+  and document fields, retaining unsaved payment/portal inputs.
+- L15: opt-in identity-column freezing without column reordering, including second-column Client
+  lists, dashboard clientName queues and raw Leads/Groups/Members/Reports tables.
+
+Recorded verification:
+- `npx tsc --noEmit`: passed.
+- `npm test -- --maxWorkers=1`: **48 files / 599 tests passed**. New action/service tests cover
+  real-role/access denial, exact scope, stale/DB failures, Inbox preservation, returned-path-only
+  cleanup, cleanup warning and authoritative status outcomes.
+- `npm run lint`: the same untouched `components/inbox/correction-control.tsx:167` apostrophe
+  error and 17 warnings; no new feature lint findings.
+- Hosted `0075_requirement_attachment_removal` = `20261126072729` applied to
+  `lihekcuksskwipkajjyv`; retained only the genuinely generated new RPC type.
+- SQL evidence: [wave-two rollback results](docs/phase-l-wave-two-sql-evidence.json).
+  All four checklist statuses on Application/Claim/Travel, submitted/issued parent preservation,
+  exact-scope/stale/role guards, audit previous status, restrictive-FK rollback, medical-review
+  invalidation, modern-upload retirement and Inbox originals/usages/shared bytes passed.
+  A first fixture attempt used an unsupported temporary-to-permanent FK; the corrected fixture
+  used a transaction-local private schema, without modifying production protections.
+  Follow-up counts: zero tagged clients, auth users, documents or fixture schemas.
+  Client → target → requirement → document locking inspected; **no two-connection runtime race**
+  without a safe development database. No Storage/Gmail operations were executed by SQL fixtures.
+- Security advisor categories/counts unchanged: existing long-OTP and leaked-password warnings.
+- A dedicated localhost Playwright page requested `/applications` and reached
+  `/login?redirectTo=%2Fapplications`. Managed browser startup and screenshot capture failed;
+  no authenticated feature surface was observed. The sole wave server on 3010 was stopped.
+
+**Current QA access differs from the historical wave-one note below:** the existing test account
+is now Active/Owner, but `.auth` is empty, both local QA credential values are empty, and no relay
+or Playwright MCP tool is available. No account was provisioned, reactivated or changed.
+Do not run the auth-generation script merely to test: it provisions/updates accounts.
+
+Pending authorized-browser scenarios (synthetic records only):
+1. L7: one creation, same-ID Begin, Close/Escape saved-record access, draft/no transition,
+   failed creation retained wizard, staged-attachment warning, reviewed-email continuation and
+   unchanged Travel path. Never send mail to real clients.
+2. L10: lazy expansion/downloads; Remove Cancel/Escape/no request, one confirmed removal,
+   status/completeness after refresh/reopen; upload/removal failures, rapid activation and stale
+   requests; real Staff/Agent downloads without Remove and direct mutation denial; Travel
+   unsaved payment/portal retention. Keep Inbox production evidence rollback-only.
+3. L15: 900×900 and 390px horizontal scroll on Clients, Applications, Policies, Payments,
+   Commissions, Renewals, Leads list, Groups, Members, Documents, Reports and a clientName queue.
+   Check sticky header/body alignment, opacity/hover, light/dark, sort, keyboard activation,
+   empty rows/no page overflow and ordinary scrolling on unopted catalog tables.
+
 ## November 26: Phase L wave one (L11/L12/L13/L16)
 
 Implemented in the integrated tree:

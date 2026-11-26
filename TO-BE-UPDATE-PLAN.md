@@ -2733,3 +2733,24 @@ still blocked**, so this wave is not recorded as fully verified.
   No two-connection race was run without a safe development database.
 - The QA account is still Inactive, saved auth is absent, and `/prospects` redirects to login.
   No account was reactivated. Remaining browser scenarios and SQL evidence are in `TESTING.md`.
+
+### Phase L second wave — implementation and verification (2026-11-26)
+
+L7, L10 and L15 are implemented and integrated; **authenticated browser acceptance remains
+pending**, not passed. Earlier L11/L12/L13/L16 acceptance is not closed by this wave.
+
+- L7: saved-application transition before Requirements, including the reviewed-email continuation;
+  single creation, drafts, staged warning and Travel paths retained.
+- L10 / DL8: real active Admin/Owner atomic detach/reset, retained Inbox originals/email,
+  prior-status audit, lazy attachment lists and explicit post-commit cleanup warning.
+  Hosted `0075_requirement_attachment_removal` (`20261126072729`) applied and RPC type regenerated.
+- L15: actual-index identity-column pinning across shared/raw record lists; order/export unchanged.
+- TypeScript passed; **599 tests / 48 files passed**. Lint retains only the known untouched
+  apostrophe error at `components/inbox/correction-control.tsx:167` and 17 warnings.
+- Rollback SQL assertions passed; zero retained QA clients/auth users/documents/test schemas.
+  No two-connection race, paid branch, email, Storage mutation, push or web deployment.
+- The existing QA account now reads Active/Owner; local QA credentials and saved auth are empty.
+  Dedicated localhost `/applications` reaches login; authenticated acceptance is blocked.
+  No account state changed. The single wave verification server was stopped.
+- Full pending browser scenarios and SQL evidence are recorded in `TESTING.md`.
+
