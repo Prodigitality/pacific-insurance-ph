@@ -8,6 +8,45 @@ The new instructions are based on the current implementation and the recorded ve
 [Development Alignment](docs/development-alignment.md). They are not a claim that every scenario
 was rerun while updating this document.
 
+## November 26: Phase L wave three (L6/L18/L19)
+
+Implemented, integrated and pushed (`3da909a`); **browser acceptance is pending** (owner to run).
+
+- L6: Application Step 1 requirement rows match Travel's styling and narrow-screen stacking.
+  Workflow behavior is unchanged.
+- L18: Clients list **Policy products** column built from actual policies (all statuses), not
+  the lead-only Product interest field.
+- L19: Renewals **Renewal date** filter by Month or inclusive Date range, based on due date only.
+
+Recorded verification:
+- `npx tsc --noEmit`: passed.
+- `npm run lint -- <14 changed files>`: passed, no warnings. Full-repo lint not rerun; the known
+  `components/inbox/correction-control.tsx:167` error and 17 warnings remain.
+- `npm test -- --maxWorkers=1 lib/repositories/policies/client-policy-products.test.ts
+  lib/repositories/policies/policies.repository.supabase.test.ts lib/renewals/lifecycle.test.ts`:
+  **83 passed**. Covers deduplication, `Product not set`, client isolation, >200 policies with
+  70-row server pages, agent scoping, failed reads rejecting with no partial result, November
+  2026 boundaries, leap day, inclusive/same-day/open ranges, invalid/reversed bounds, null dates,
+  and Upcoming rows with no carrier notice.
+- No browser session was available to the agents (no relay, `.auth` empty); nothing was run in
+  a browser, no fixtures created, no account changed.
+
+Pending browser scenarios (synthetic or tagged disposable records only):
+1. L6 at 1280px and 390px, light and dark: Application Step 1 vs Travel row padding/text/select;
+   stacked controls and no attachment indent on narrow screens; no horizontal overflow. All four
+   statuses, three sections, an Optional row, Count as required, BC Flexi `Mark agreed`; attach,
+   list and remove on a synthetic checklist; missing-documents jump, Continue and Back. Claims and
+   wizard Step 4 unchanged.
+2. L18 on desktop and 390px: multiple products, a duplicate, a missing product and a no-policy
+   client; search and sort by Policy products; archived toggle; Group Accounts and the profile
+   Policies card unchanged; Client column stays frozen. With an Agent login, only that agent's
+   clients' products appear.
+3. L19 on desktop and 390px: November 2026, then 10–20 November; table, `N of M` and the
+   downloaded `renewals.csv` agree; boundaries inclusive; no-notice Upcoming rows included;
+   status chips/search combine; due-date sort kept. Same-day, open, invalid and reversed ranges;
+   error text and empty result; Any date / Clear date filter reset; mode switches keep inputs;
+   KPIs unchanged; Client column frozen; other list screens show no date filter.
+
 ## November 26: Phase L wave two (L7/L10/L15)
 
 Implemented and integrated; **authenticated browser acceptance is pending**.

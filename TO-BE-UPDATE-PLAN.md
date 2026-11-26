@@ -2754,3 +2754,29 @@ pending**, not passed. Earlier L11/L12/L13/L16 acceptance is not closed by this 
   No account state changed. The single wave verification server was stopped.
 - Full pending browser scenarios and SQL evidence are recorded in `TESTING.md`.
 
+### Phase L third wave — implementation and verification (2026-11-26)
+
+L6, L18 and L19 are implemented, integrated and pushed (`3da909a`); **browser acceptance is
+pending** and will be done by the owner. No migration; the next local number stays `0076`.
+
+- L6: Application Step 1 requirement rows now use Travel's row styling: `p-3` padding,
+  12.5px/11px text, the shared `INPUT` status select, and controls that stack on narrow screens
+  with no attachment indent. Sections, BC Flexi `Mark agreed`, Count as required, L10 attachment
+  removal and navigation are unchanged (`c93519e`).
+- L18: the Clients list has a sortable, searchable **Policy products** column. It lists every
+  product from the client's policies (any status), newest first, case-insensitively deduplicated,
+  with a single trailing `Product not set` for policies with no product; clients with no
+  policies show `—`. The new `PoliciesRepository.listProductsByClientIds` loads in chunks of 100
+  clients and pages of 200, uses the same agent scoping as other lists, and throws rather than
+  returning partial results (`8010818`, `18dbc00`).
+- L19: Renewals has a **Renewal date** filter (Any date / Month / Date range). Ranges include
+  both end dates, either end may be left open, and invalid or reversed bounds show an error and
+  no rows. The filter checks only the renewal due date, so Upcoming renewals without a carrier
+  notice remain visible. It combines with the existing status chips and search; KPIs, due-date
+  sorting and CSV export are unchanged. `ListScreen` gained optional `rowMatches`/`filterBar`
+  props that other screens don't use (`9e567de`, `30cbf34`, `af4cc1a`).
+- TypeScript passed; lint on the 14 changed files passed with no warnings; the 3 targeted test
+  files passed **83/83**. Full-repo lint was not rerun; the known
+  `components/inbox/correction-control.tsx:167` error stands.
+- Browser checks for L6/L18/L19 (including Agent-login product scoping) are pending; scenarios
+  are listed in `TESTING.md`.

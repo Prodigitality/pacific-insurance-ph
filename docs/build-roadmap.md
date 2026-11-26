@@ -81,6 +81,13 @@ untouched apostrophe error. Authenticated browser acceptance remains pending: QA
 Active/Owner, but saved auth and local QA credentials are absent. No account change, email,
 Storage mutation, paid branch, push or web deployment. See [manual acceptance](../TESTING.md).
 
+## November 26: Phase L third wave
+
+L6 Application requirement rows match Travel, L18 Clients list shows actual policy products,
+and L19 Renewals filter by due month or date range are integrated and pushed (`3da909a`).
+No migration. TypeScript, changed-file lint and 83 targeted tests pass. Browser acceptance is
+pending (owner). See [manual acceptance](../TESTING.md).
+
 ## Important limits
 
 - **No outbound delivery is enabled.** Gmail connection management is implemented separately;
