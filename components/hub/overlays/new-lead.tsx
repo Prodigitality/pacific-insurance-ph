@@ -27,8 +27,8 @@ const SOURCES = [
 ];
 
 
-export function NewLeadDrawer({ prefill, onClose }: {
-  prefill?: { startingStage?: unknown };
+export function NewLeadDrawer({ startingStage, onClose }: {
+  startingStage?: string;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -43,7 +43,7 @@ export function NewLeadDrawer({ prefill, onClose }: {
   const [estPremium, setEstPremium] = useState("");
   const [source, setSource] = useState("Referral");
   const [stage, setStage] = useState<string>(() =>
-    LEAD_BOARD_STAGES.find((stage) => stage === prefill?.startingStage) ?? "New Lead",
+    LEAD_BOARD_STAGES.find((stage) => stage === startingStage) ?? "New Lead",
   );
   const [status, setStatus] = useState("New");
   const [dateOfBirth, setDateOfBirth] = useState("");
