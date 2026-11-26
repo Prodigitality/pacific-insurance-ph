@@ -1,5 +1,7 @@
 import "server-only";
 
+import type { PostgrestError } from "@supabase/supabase-js";
+
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/types";
 import { DEFAULT_LIST_LIMIT, ownerScopedSelect, ownerScopeFilter, RepositoryError, statusListLiteral, toRepositoryError, type ListOptions } from "../types";
@@ -35,31 +37,50 @@ type ProductRow = { id: string; client_id: string; created_at: string; product_v
 
 const incompleteProducts = () => new RepositoryError(`${PRODUCT_CONTEXT}: policy products could not be loaded completely.`);
 
+type ProductPage = { data: ProductRow[] | null; error: PostgrestError | null; count: number | null };
+
+/** One page of a chunk's policies; only the first page asks for the exact count. */
+async function readProductPage(chunk: string[], ownerUserId: string | null | undefined, offset: number, withCount: boolean): Promise<ProductPage> {
+  const query = ownerScopeFilter(
+    getSupabaseAdmin().from("policies").select(ownerScopedSelect(PRODUCT_COLUMNS, ownerUserId), { count: withCount ? "exact" : undefined }),
+    ownerUserId,
+  );
+  return query
+    .in("client_id", chunk)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: true })
+    .range(offset, offset + PRODUCT_PAGE_SIZE - 1)
+    .returns<ProductRow[]>();
+}
+
+/** The page's rows, or a thrown error for a database failure or a missing result. */
+function acceptProductPage(page: ProductPage): ProductRow[] {
+  if (page.error) throw toRepositoryError(PRODUCT_CONTEXT, page.error);
+  if (!page.data) throw incompleteProducts();
+  return page.data;
+}
+
 /** Every policy of one chunk of clients, paged until the exact count is reached; never partial. */
 async function readProductChunk(chunk: string[], ownerUserId?: string | null): Promise<ClientPolicyProduct[]> {
   const products: ClientPolicyProduct[] = [];
-  let total: number | null = null;
-  let offset = 0;
-  while (total === null || offset < total) {
-    const query = ownerScopeFilter(
-      getSupabaseAdmin().from("policies").select(ownerScopedSelect(PRODUCT_COLUMNS, ownerUserId), total === null ? { count: "exact" } : undefined),
-      ownerUserId,
-    );
-    const { data, error, count } = await query
-      .in("client_id", chunk)
-      .order("created_at", { ascending: false })
-      .order("id", { ascending: true })
-      .range(offset, offset + PRODUCT_PAGE_SIZE - 1)
-      .returns<ProductRow[]>();
-    if (error) throw toRepositoryError(PRODUCT_CONTEXT, error);
-    if (!data) throw incompleteProducts();
-    if (total === null) {
-      if (count === null || count === undefined) throw incompleteProducts();
-      total = count;
-    }
-    if (data.length === 0 && offset < total) throw incompleteProducts();
-    for (const row of data) products.push({ clientId: row.client_id, productName: row.product_versions?.product?.name ?? null, createdAt: row.created_at });
-    offset += data.length;
+  const append = (rows: ProductRow[]) => {
+    for (const row of rows) products.push({ clientId: row.client_id, productName: row.product_versions?.product?.name ?? null, createdAt: row.created_at });
+  };
+
+  const first = await readProductPage(chunk, ownerUserId, 0, true);
+  const firstRows = acceptProductPage(first);
+  if (first.count === null || first.count === undefined) throw incompleteProducts();
+  const total: number = first.count;
+  if (firstRows.length === 0 && total > 0) throw incompleteProducts();
+  append(firstRows);
+
+  let offset = firstRows.length;
+  while (offset < total) {
+    const rows = acceptProductPage(await readProductPage(chunk, ownerUserId, offset, false));
+    // A short or empty page while rows remain must never end the read early.
+    if (rows.length === 0) throw incompleteProducts();
+    append(rows);
+    offset += rows.length;
   }
   return products;
 }
