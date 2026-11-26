@@ -16,6 +16,7 @@ import type {
   DocumentRecordUpdate,
   NewDocumentRecord,
   ProposalReceiptInput,
+  ProposalReplacementInput,
 } from "./document.entity";
 import type { DocumentsRepository } from "./documents.repository";
 
@@ -50,6 +51,35 @@ function toDomain(row: DocRow): DocumentRecord {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+/**
+ * Map `delete_proposal_pdf` failures to staff-facing text. Only recognized machine errors are
+ * named; PostgreSQL detail (file names, paths, rows) is never retained.
+ */
+function proposalDeletionError(code?: string, message?: string): RepositoryError {
+  const error = code === "42501"
+    ? "Only an Admin can delete a proposal PDF."
+    : message === "proposal_delete_stale"
+      ? "This proposal changed since the page loaded, so nothing was deleted. Refresh and try again."
+      : message === "proposal_delete_not_current"
+        ? "This lead has another active proposal PDF, so nothing was deleted. Refresh and try again."
+        : code === "23503"
+          ? "Another record still uses this proposal PDF, so nothing was deleted."
+          : "The proposal PDF could not be deleted. Refresh the record and try again.";
+  return new RepositoryError(error, { code: code && /^[a-zA-Z0-9_-]{1,64}$/.test(code) ? code : "proposal_delete_failed" });
+}
+
+/** Map `replace_proposal_pdf` failures; like removal, never retain PostgreSQL detail. */
+function proposalReplacementError(code?: string, message?: string): RepositoryError {
+  const error = code === "42501"
+    ? "This lead is not available to your account."
+    : message === "proposal_replace_stale"
+      ? "This proposal changed since the page loaded (it may have been deleted), so nothing was replaced. Refresh and try again."
+      : message === "proposal_replace_invalid"
+        ? "The uploaded PDF could not be filed. Upload it again."
+        : "The proposal PDF could not be replaced. Refresh the record and try again.";
+  return new RepositoryError(error, { code: code && /^[a-zA-Z0-9_-]{1,64}$/.test(code) ? code : "proposal_replace_failed" });
 }
 
 /** supabase-js (service role) implementation of {@link DocumentsRepository}. */
@@ -130,6 +160,30 @@ export class SupabaseDocumentsRepository implements DocumentsRepository {
     const document = await this.findById(data);
     if (!document) throw new RepositoryError("The proposal receipt was saved but its document could not be loaded. Refresh the record.", { code: "proposal_receipt_unavailable" });
     return document;
+  }
+
+  async replaceProposal(input: ProposalReplacementInput): Promise<DocumentRecord> {
+    const { data, error } = await getSupabaseAdmin().rpc("replace_proposal_pdf", {
+      p_actor_id: input.actorId,
+      p_client_id: input.clientId,
+      p_storage_path: input.storagePath,
+      p_name: input.name,
+    });
+    if (error || !data) throw proposalReplacementError(error?.code, error?.message);
+    const document = await this.findById(data);
+    if (!document) throw new RepositoryError("The replacement was saved but its document could not be loaded. Refresh the record.", { code: "proposal_replace_unavailable" });
+    return document;
+  }
+
+  async deleteProposal(actorId: string, clientId: string, documentId: string): Promise<{ storagePath: string | null; originalPreserved: boolean }> {
+    const { data, error } = await getSupabaseAdmin().rpc("delete_proposal_pdf", {
+      p_actor_id: actorId,
+      p_client_id: clientId,
+      p_document_id: documentId,
+    });
+    if (error || !data) throw proposalDeletionError(error?.code, error?.message);
+    const result = data as { storagePath?: string | null; originalPreserved?: boolean };
+    return { storagePath: result.storagePath ?? null, originalPreserved: result.originalPreserved === true };
   }
 
   async create(input: NewDocumentRecord): Promise<DocumentRecord> {

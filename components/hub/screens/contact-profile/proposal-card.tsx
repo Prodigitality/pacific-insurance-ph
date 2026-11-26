@@ -2,10 +2,11 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useOptimistic, useState, useTransition } from "react";
+import { useOptimistic, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import {
+  deleteProposalPdfAction,
   replaceProposalPdfAction,
   setProposalStatusAction,
   type UploadedProposal,
@@ -22,6 +23,10 @@ import { Btn, Card, CardHead, TONE_TEXT } from "../../primitives";
 import type { Tone } from "../../tone";
 import type { Doc } from "./records-cards";
 
+/** A text action docked beside the proposal PDF link. */
+const FILE_ACTION =
+  "shrink-0 border-l border-border-soft px-3 text-[12px] font-semibold text-muted-foreground transition-colors hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand/30 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted-foreground";
+
 /**
  * Lead-only proposal tracking card. Actions follow `proposal_status`, not `lead_stage`: Generate
  * Proposal is offered at every stage (header menu), so a Requested/Received proposal on a
@@ -36,6 +41,7 @@ export function ProposalCard({
   onEmailProposal,
   onRecordDecision,
   onStatusChange,
+  canDeleteProposal = false,
 }: {
   client: Client;
   pacificCrossPortalUrl: string | null;
@@ -47,6 +53,11 @@ export function ProposalCard({
   onEmailProposal: () => void;
   onRecordDecision: () => void;
   onStatusChange: (proposalStatus: string) => void;
+  /**
+   * Whether the real signed-in user is an Admin/Owner (never the View-as preview). Gates the
+   * destructive Delete; the server action and SQL recheck it.
+   */
+  canDeleteProposal?: boolean;
 }) {
   const router = useRouter();
   const overlays = useOverlays();
@@ -62,6 +73,65 @@ export function ProposalCard({
   } | null>(null);
   // Our upload stands in for the stale `proposalDocument` prop until the refresh swaps it.
   const shownDocument = uploaded && uploaded.base === proposalDocument ? uploaded.proposal : proposalDocument;
+  // Covers the open confirmation and the server round trip, so nothing else can act on the PDF.
+  const [deletePending, startDelete] = useTransition();
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const deleteRequested = useRef(false);
+  const deleting = confirmingDelete || deletePending;
+  const busy = pending || deleting;
+
+  const deleteProposal = async (documentId: string) => {
+    if (deleteRequested.current) return;
+    deleteRequested.current = true;
+    setConfirmingDelete(true);
+    const confirmed = await overlays.confirm({
+      kind: "danger",
+      title: "Delete proposal?",
+      message: "The current proposal will be removed and proposal tracking will return to Requested. An Inbox original will be retained.",
+      confirmLabel: "Delete proposal",
+    });
+    setConfirmingDelete(false);
+    if (!confirmed) {
+      deleteRequested.current = false;
+      return;
+    }
+    startDelete(async () => {
+      // `removed`: the record is gone, even if its file cleanup failed. `unknown`: the request
+      // itself failed, so the server may still have committed. Either way our upload stand-in
+      // must go: with no proposal left, `uploaded.base` would match the refreshed prop again.
+      let outcome: "removed" | "failed" | "unknown" = "unknown";
+      try {
+        const res = await deleteProposalPdfAction(client.id, documentId);
+        if (res.ok) {
+          outcome = "removed";
+          overlays.toast(
+            res.data.originalPreserved ? "Proposal PDF unlinked" : "Proposal PDF deleted",
+            res.data.originalPreserved
+              ? `${client.fullName}: proposal tracking is back to Requested. The Inbox original stays in Documents.`
+              : `${client.fullName}: proposal tracking is back to Requested.`,
+          );
+        } else if ("recordRemoved" in res && res.recordRemoved) {
+          outcome = "removed";
+          overlays.toast("Proposal file not fully removed", res.error);
+        } else {
+          outcome = "failed";
+          overlays.toast("Couldn’t delete proposal", res.error);
+        }
+      } catch {
+        overlays.toast("Couldn’t delete proposal", "The request didn’t complete. Refresh the record to see its current state.");
+      }
+      deleteRequested.current = false;
+      // Local cleanup commits together with the refreshed server props.
+      startDelete(() => {
+        if (outcome !== "failed") {
+          setUploaded(null);
+          setReplacing(false);
+        }
+        if (outcome === "removed") onStatusChange("Requested");
+        router.refresh();
+      });
+    });
+  };
 
   const markProposal = (next: string) => {
     setProposalMarking(next);
@@ -115,12 +185,12 @@ export function ProposalCard({
       <Btn key="start" size="sm" onClick={() => (individual ? onGenerate() : onRequest())}>{individual ? "Generate proposal" : "Request proposal"}</Btn>
     ),
     status === "Requested" && (
-      <Btn key="received" size="sm" disabled={pending} onClick={() => markProposal("Received")}>
+      <Btn key="received" size="sm" disabled={busy} onClick={() => markProposal("Received")}>
         {pending && proposalMarking === "Received" ? "Marking received…" : "Mark Received without PDF"}
       </Btn>
     ),
-    !accepted && status === "Sent" && <Btn key="decide" size="sm" onClick={onRecordDecision}>Record decision</Btn>,
-    !accepted && status === "Decision" && <Btn key="update" size="sm" onClick={onRecordDecision}>Update decision</Btn>,
+    !accepted && status === "Sent" && <Btn key="decide" size="sm" disabled={deleting} onClick={onRecordDecision}>Record decision</Btn>,
+    !accepted && status === "Decision" && <Btn key="update" size="sm" disabled={deleting} onClick={onRecordDecision}>Update decision</Btn>,
   ].filter(Boolean);
   const receiptUpload = (!status || status === "Requested") && !uploaded?.confirming ? (
     <ProposalReceiptUpload
@@ -141,13 +211,30 @@ export function ProposalCard({
   const hasFiledProposal = !uploaded?.confirming && !!shownDocument && !!status && status !== "Requested";
   const documentRow = hasFiledProposal && shownDocument ? (
     <div className="flex items-stretch overflow-hidden rounded-md border border-border-soft">
-      <a href={`/api/documents/${shownDocument.id}/download`} className="flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-[12.5px] font-semibold text-brand-hover transition-colors hover:bg-hover">
+      <a
+        href={`/api/documents/${shownDocument.id}/download`}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={`Open ${shownDocument.name} in a new tab`}
+        className="flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-[12.5px] font-semibold text-brand-hover transition-colors hover:bg-hover"
+      >
         <I.fileText size={15} className="shrink-0" />
         <span className="truncate">{shownDocument.name}</span>
       </a>
       {!replacing && (
-        <button type="button" onClick={() => setReplacing(true)} className="shrink-0 border-l border-border-soft px-3 text-[12px] font-semibold text-muted-foreground transition-colors hover:bg-hover hover:text-foreground">
+        <button type="button" disabled={busy} onClick={() => setReplacing(true)} className={cn(FILE_ACTION, "hover:text-foreground")}>
           Replace
+        </button>
+      )}
+      {!replacing && canDeleteProposal && (
+        <button
+          type="button"
+          disabled={busy}
+          aria-label={`Delete ${shownDocument.name}`}
+          onClick={() => void deleteProposal(shownDocument.id)}
+          className={cn(FILE_ACTION, "hover:text-red")}
+        >
+          {deletePending ? "Deleting…" : "Delete"}
         </button>
       )}
     </div>
@@ -210,8 +297,8 @@ export function ProposalCard({
               Send to <span className="font-medium text-foreground">{recipient ?? "no email on file"}</span>
             </p>
             <div className="mt-2 grid grid-cols-2 gap-2">
-              <Btn size="sm" variant="primary" onClick={onEmailProposal}>Email</Btn>
-              <Btn size="sm" disabled={pending} onClick={markSent} title="Record a proposal you sent outside the CRM. This is not Gmail evidence.">
+              <Btn size="sm" variant="primary" disabled={deleting} onClick={onEmailProposal}>Email</Btn>
+              <Btn size="sm" disabled={busy} onClick={markSent} title="Record a proposal you sent outside the CRM. This is not Gmail evidence.">
                 {markingSent ? "Marking…" : "Mark sent"}
               </Btn>
             </div>

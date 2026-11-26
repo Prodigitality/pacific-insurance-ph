@@ -2,7 +2,12 @@ import "server-only";
 
 import { recordAudit } from "@/lib/audit/log";
 import { COMMISSION_VOUCHER_DOCUMENT_TYPE } from "@/lib/commissions/voucher";
-import { getDocumentsRepository, type DocumentRecord, type ProposalReceiptInput } from "@/lib/repositories/documents";
+import {
+  getDocumentsRepository,
+  type DocumentRecord,
+  type ProposalReceiptInput,
+  type ProposalReplacementInput,
+} from "@/lib/repositories/documents";
 import { getCommissionsRepository, type Commission } from "@/lib/repositories/payments";
 import type { FileCommissionVoucherInput } from "@/lib/repositories/payments/commission.entity";
 import { getObjectInfo, removeObject } from "@/lib/supabase/storage";
@@ -71,6 +76,12 @@ export async function registerUploadedProposalReceipt(input: ProposalReceiptInpu
   await verifyUploadedDocument(input.storagePath, input.clientId);
   const { clientId: _clientId, ...receipt } = input;
   return getDocumentsRepository().registerProposalReceipt(receipt);
+}
+
+/** Proposal replacement shares the client lock with removal and receipt in one transaction. */
+export async function registerUploadedProposalReplacement(input: ProposalReplacementInput): Promise<DocumentRecord> {
+  await verifyUploadedDocument(input.storagePath, input.clientId);
+  return getDocumentsRepository().replaceProposal(input);
 }
 
 /** Verify the carrier PDF before atomically filing its original and current pointer. */
