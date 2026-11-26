@@ -38,6 +38,14 @@ export interface Policy {
   updatedAt: string;
 }
 
+/** One policy's product for a client — the bulk projection behind the Clients directory's product summary. */
+export interface ClientPolicyProduct {
+  clientId: string;
+  /** Product recorded on the policy's version; null when none is recorded. */
+  productName: string | null;
+  createdAt: string;
+}
+
 export interface NewPolicy {
   clientId: string;
   productVersionId?: string | null;

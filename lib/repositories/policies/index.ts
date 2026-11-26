@@ -12,4 +12,4 @@ export function getPoliciesRepository(): PoliciesRepository {
 }
 
 export type { PoliciesRepository } from "./policies.repository";
-export type { Policy, NewPolicy, PolicyUpdate } from "./policy.entity";
+export type { ClientPolicyProduct, Policy, NewPolicy, PolicyUpdate } from "./policy.entity";

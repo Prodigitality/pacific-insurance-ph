@@ -2,8 +2,8 @@ import "server-only";
 
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/types";
-import { DEFAULT_LIST_LIMIT, ownerScopedSelect, ownerScopeFilter, statusListLiteral, toRepositoryError, type ListOptions } from "../types";
-import type { Policy, NewPolicy, PolicyUpdate } from "./policy.entity";
+import { DEFAULT_LIST_LIMIT, ownerScopedSelect, ownerScopeFilter, RepositoryError, statusListLiteral, toRepositoryError, type ListOptions } from "../types";
+import type { ClientPolicyProduct, Policy, NewPolicy, PolicyUpdate } from "./policy.entity";
 import type { PoliciesRepository } from "./policies.repository";
 
 type PolicyRow = Database["public"]["Tables"]["policies"]["Row"];
@@ -25,6 +25,44 @@ const SELECT = `*,
   clients (first_name, last_name, group_members (group_accounts (id, name))),
   product_versions (product:products (name, category)),
   plan_options (plan_name, plan_family, limit_basis, maximum_coverage, coverage_currency)`;
+
+const PRODUCT_COLUMNS = "id, client_id, created_at, product_versions (product:products (name))";
+const PRODUCT_CHUNK_SIZE = 100;
+const PRODUCT_PAGE_SIZE = 200;
+const PRODUCT_CONTEXT = "PoliciesRepository.listProductsByClientIds";
+
+type ProductRow = { id: string; client_id: string; created_at: string; product_versions: { product: { name: string } | null } | null };
+
+const incompleteProducts = () => new RepositoryError(`${PRODUCT_CONTEXT}: policy products could not be loaded completely.`);
+
+/** Every policy of one chunk of clients, paged until the exact count is reached; never partial. */
+async function readProductChunk(chunk: string[], ownerUserId?: string | null): Promise<ClientPolicyProduct[]> {
+  const products: ClientPolicyProduct[] = [];
+  let total: number | null = null;
+  let offset = 0;
+  while (total === null || offset < total) {
+    const query = ownerScopeFilter(
+      getSupabaseAdmin().from("policies").select(ownerScopedSelect(PRODUCT_COLUMNS, ownerUserId), total === null ? { count: "exact" } : undefined),
+      ownerUserId,
+    );
+    const { data, error, count } = await query
+      .in("client_id", chunk)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: true })
+      .range(offset, offset + PRODUCT_PAGE_SIZE - 1)
+      .returns<ProductRow[]>();
+    if (error) throw toRepositoryError(PRODUCT_CONTEXT, error);
+    if (!data) throw incompleteProducts();
+    if (total === null) {
+      if (count === null || count === undefined) throw incompleteProducts();
+      total = count;
+    }
+    if (data.length === 0 && offset < total) throw incompleteProducts();
+    for (const row of data) products.push({ clientId: row.client_id, productName: row.product_versions?.product?.name ?? null, createdAt: row.created_at });
+    offset += data.length;
+  }
+  return products;
+}
 
 function toDomain(row: JoinedRow): Policy {
   return {
@@ -96,6 +134,14 @@ export class SupabasePoliciesRepository implements PoliciesRepository {
 
     if (error) throw toRepositoryError("PoliciesRepository.listByClient", error);
     return (data ?? []).map(toDomain);
+  }
+
+  async listProductsByClientIds(clientIds: string[], opts: { ownerUserId?: string | null } = {}): Promise<ClientPolicyProduct[]> {
+    const unique = [...new Set(clientIds)];
+    if (unique.length === 0) return [];
+    const chunks: string[][] = [];
+    for (let i = 0; i < unique.length; i += PRODUCT_CHUNK_SIZE) chunks.push(unique.slice(i, i + PRODUCT_CHUNK_SIZE));
+    return (await Promise.all(chunks.map((chunk) => readProductChunk(chunk, opts.ownerUserId)))).flat();
   }
 
   async create(input: NewPolicy): Promise<Policy> {

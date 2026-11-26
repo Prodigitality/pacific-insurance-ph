@@ -6,6 +6,8 @@ import {
 import { getAgentScope } from "@/lib/auth/agent-scope";
 import { getClientsRepository } from "@/lib/repositories/clients";
 import { getGroupsRepository } from "@/lib/repositories/groups";
+import { summarizeClientPolicyProducts } from "@/lib/repositories/policies/client-policy-products";
+import { getPoliciesRepository } from "@/lib/repositories/policies";
 import { ownerScopedSelect, ownerScopeFilter } from "@/lib/repositories/types";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
@@ -44,6 +46,11 @@ export default async function ClientsPage({
   for (const m of memberships.data ?? []) {
     if (m.client_id && m.group_accounts) groupsByClient[m.client_id] = m.group_accounts;
   }
+  const archivedClients = archived.rows.filter((c) => c.status === "Archived");
+  const clientIds = [...new Set([...rows, ...archivedClients].map((c) => c.id))];
+  const policyProductsByClient = summarizeClientPolicyProducts(
+    await getPoliciesRepository().listProductsByClientIds(clientIds, { ownerUserId }),
+  );
 
   return (
     <div>
@@ -51,8 +58,9 @@ export default async function ClientsPage({
       <ClientsList
         clients={rows}
         total={total}
-        archivedClients={archived.rows.filter((c) => c.status === "Archived")}
+        archivedClients={archivedClients}
         groupsByClient={groupsByClient}
+        policyProductsByClient={policyProductsByClient}
       />
     </div>
   );
