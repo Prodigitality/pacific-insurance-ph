@@ -117,7 +117,7 @@ export function DocumentsList({ items, total }: { items: DocumentListItem[]; tot
         </span>
       </div>
 
-      <Table>
+      <Table stickyNameColumn={1}>
         <thead>
           <tr>
             <Th label="Document" k="name" sort={sort} toggle={toggle} />

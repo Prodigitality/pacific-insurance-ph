@@ -119,6 +119,8 @@ export function ListScreen<T extends FilterableRow>({
     );
   }
   const { sorted, sort, toggle } = useSort(view, defaultSort.key, defaultSort.dir);
+  const nameColumnIndex = columns.findIndex((c) => String(c.k) === "clientName") + 1;
+  const stickyNameColumn = nameColumnIndex === 1 || nameColumnIndex === 2 ? nameColumnIndex : undefined;
 
   const exportCsv = useMemo(
     () => () => {
@@ -222,7 +224,7 @@ export function ListScreen<T extends FilterableRow>({
           </div>
         </div>
 
-        <Table>
+        <Table stickyNameColumn={stickyNameColumn}>
           <thead>
             <tr>
               {columns.map((c) => (
