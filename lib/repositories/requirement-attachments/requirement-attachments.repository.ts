@@ -1,4 +1,4 @@
-import type { AttachmentPickerScope, RequirementAttachmentPage, RequirementAttachmentReceipt, RequirementTarget } from "@/lib/documents/requirement-attachment.types";
+import type { AttachmentPickerScope, RequirementAttachmentPage, RequirementAttachmentReceipt, RequirementAttachmentRemoval, RequirementTarget } from "@/lib/documents/requirement-attachment.types";
 
 export interface RequirementUploadMetadata {
   fileName: string;
@@ -16,4 +16,5 @@ export interface RequirementAttachmentsRepository {
   receive(actorId: string, target: RequirementTarget, source: StoredRequirementSource): Promise<RequirementAttachmentReceipt>;
   getOriginalPath(actorId: string, messageId: string, partId: string): Promise<string | null>;
   deleteDocument(actorId: string, documentId: string): Promise<{ storagePath: string | null; originalPreserved?: boolean }>;
+  detach(actorId: string, target: RequirementTarget, documentId: string): Promise<{ storagePath: string | null; requirementStatus: RequirementAttachmentRemoval["requirementStatus"]; originalPreserved: boolean }>;
 }

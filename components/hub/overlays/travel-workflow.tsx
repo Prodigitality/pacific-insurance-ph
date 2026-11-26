@@ -316,13 +316,14 @@ export function TravelWorkflowModal({ travelRequestId, onClose }: { travelReques
               <option>Pending</option><option>Received</option><option>Incomplete</option><option>Verified</option>
             </select>
           </div>
-          {canEdit && <div className="mt-2 sm:pl-10">
+          <div className="mt-2 sm:pl-10">
             <DocumentUploadForm
               clientId={payload.travel.clientId}
               travelRequestId={travelRequestId}
               requirementId={item.id}
               requirementLabel={`${payload.travel.referenceNo ?? "Travel request"} · ${payload.travel.clientName} · ${item.documentName}${item.appliesTo ? ` · ${item.appliesTo}` : ""}`}
               requirement={item}
+              disabled={!canEdit}
               sourceLibraryDocumentId={item.documentName.includes("application form") ? payload.travel.carrierFormLibraryId ?? undefined : undefined}
               onAttached={(receipt) => {
                 latestStatusPick.current[item.id] = (latestStatusPick.current[item.id] ?? 0) + 1;
@@ -338,8 +339,20 @@ export function TravelWorkflowModal({ travelRequestId, onClose }: { travelReques
                 }).catch(() => overlays.toast("Document attached", "Reopen the workflow to refresh the complete checklist."));
                 router.refresh();
               }}
+              onRemoved={(removal) => {
+                latestStatusPick.current[item.id] = (latestStatusPick.current[item.id] ?? 0) + 1;
+                setPayload((current) => current ? {
+                  ...current,
+                  requirements: current.requirements.map((requirement) => requirement.id === item.id ? { ...requirement, status: removal.requirementStatus } : requirement),
+                  documents: current.documents.filter((document) => document.id !== removal.documentId),
+                } : current);
+                void getTravelWorkflowAction(travelRequestId).then((result) => {
+                  if (result.ok) setPayload((current) => current ? { ...current, requirements: result.data.requirements, documents: result.data.documents } : current);
+                  else overlays.toast("Attachment removed; checklist refresh failed", result.error);
+                }).catch(() => overlays.toast("Attachment removed", "Reopen the workflow to refresh the complete checklist."));
+              }}
             />
-          </div>}
+          </div>
         </div>)}</div>
       </div>
     </div>}

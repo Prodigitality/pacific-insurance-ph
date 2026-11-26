@@ -138,6 +138,10 @@ export function ClaimRequirementsPanel({
                     onChange((previous) => previous.map((requirement) => requirement.id === item.id ? { ...requirement, status: receipt.requirementStatus } : requirement));
                     router.refresh();
                   }}
+                  onRemoved={(result) => {
+                    latestStatusPick.current[item.id] = (latestStatusPick.current[item.id] ?? 0) + 1;
+                    onChange((previous) => previous.map((requirement) => requirement.id === item.id ? { ...requirement, status: result.requirementStatus } : requirement));
+                  }}
                 /></div>
               </div>
             ))}

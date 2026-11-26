@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { AttachmentPickerScope, RequirementAttachmentPage, RequirementAttachmentReceipt, RequirementTarget } from "@/lib/documents/requirement-attachment.types";
+import type { AttachmentPickerScope, RequirementAttachmentPage, RequirementAttachmentReceipt, RequirementAttachmentRemoval, RequirementTarget } from "@/lib/documents/requirement-attachment.types";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/supabase/types";
 import { getDocumentsRepository } from "../documents";
@@ -55,5 +55,22 @@ export class SupabaseRequirementAttachmentsRepository implements RequirementAtta
     const { data, error } = await getSupabaseAdmin().rpc("delete_document_safely", { p_actor_id: actorId, p_document_id: documentId });
     if (error || !data) throw persistenceError(error?.code, error?.message);
     return data as { storagePath: string | null; originalPreserved?: boolean };
+  }
+  async detach(actorId: string, target: RequirementTarget, documentId: string): Promise<{ storagePath: string | null; requirementStatus: RequirementAttachmentRemoval["requirementStatus"]; originalPreserved: boolean }> {
+    const { data, error } = await getSupabaseAdmin().rpc("detach_requirement_attachment", { p_actor_id: actorId, p_target: json(target), p_document_id: documentId });
+    if (error) {
+      if (error.code === "42501") throw persistenceError(error.code, error.message);
+      throw new RepositoryError(error.message === "This attachment changed. Refresh and try again."
+        ? error.message
+        : error.code === "23503" ? "Another record still uses this attachment. Nothing was removed."
+          : "The attachment could not be removed. Refresh and try again.", { code: "attachment_removal_failed" });
+    }
+    if (!data || typeof data !== "object" || Array.isArray(data)
+      || (data.storagePath !== null && typeof data.storagePath !== "string")
+      || typeof data.originalPreserved !== "boolean"
+      || (data.requirementStatus !== "Pending" && data.requirementStatus !== "Incomplete" && data.requirementStatus !== "Received" && data.requirementStatus !== "Verified")) {
+      throw new RepositoryError("The removal response could not be loaded. Refresh the checklist before retrying.", { code: "attachment_removal_unavailable" });
+    }
+    return { storagePath: data.storagePath, requirementStatus: data.requirementStatus, originalPreserved: data.originalPreserved };
   }
 }

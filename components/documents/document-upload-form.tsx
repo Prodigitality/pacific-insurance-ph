@@ -7,8 +7,9 @@ import { uploadDocumentAction } from "@/app/(app)/documents/actions";
 import { I } from "@/components/hub/icons";
 import { Btn } from "@/components/hub/primitives";
 import { cn } from "@/lib/utils";
-import type { RequirementAttachmentReceipt, RequirementTarget } from "@/lib/documents/requirement-attachment.types";
+import type { RequirementAttachmentReceipt, RequirementAttachmentRemoval, RequirementTarget } from "@/lib/documents/requirement-attachment.types";
 import { RequirementAttachmentPicker } from "./requirement-attachment-picker";
+import { RequirementAttachmentList } from "./requirement-attachment-list";
 import { FilePickField } from "./file-pick-field";
 
 const inputCls =
@@ -28,11 +29,15 @@ function SubmitButton({ ready }: { ready: boolean }) {
  * Ordinary uploads keep their compact device form, including name/type/visibility details.
  * `onAttached` updates local checklist state immediately; `onUploaded` can refresh other data.
  */
-export function DocumentUploadForm({ clientId, applicationId, travelRequestId, claimId, requirementId, requirementLabel, requirement, sourceLibraryDocumentId, onUploaded, onAttached }: { clientId?: string; applicationId?: string; travelRequestId?: string; claimId?: string; requirementId?: string; requirementLabel?: string; requirement?: { documentName: string; appliesTo?: string | null }; sourceLibraryDocumentId?: string; onUploaded?: () => void; onAttached?: (receipt: RequirementAttachmentReceipt) => void }) {
+export function DocumentUploadForm({ clientId, applicationId, travelRequestId, claimId, requirementId, requirementLabel, requirement, sourceLibraryDocumentId, onUploaded, onAttached, onRemoved, disabled }: { clientId?: string; applicationId?: string; travelRequestId?: string; claimId?: string; requirementId?: string; requirementLabel?: string; requirement?: { documentName: string; appliesTo?: string | null }; sourceLibraryDocumentId?: string; onUploaded?: () => void; onAttached?: (receipt: RequirementAttachmentReceipt) => void; onRemoved?: (result: RequirementAttachmentRemoval) => void; disabled?: boolean }) {
   const formRef = useRef<HTMLFormElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [attachmentRevision, setAttachmentRevision] = useState(0);
+  const [pickerRevision, setPickerRevision] = useState(0);
+  const [attachmentBusy, setAttachmentBusy] = useState(false);
+  const [pickerBusy, setPickerBusy] = useState(false);
 
   const pick = (next: File | null) => {
     setFile(next);
@@ -44,13 +49,31 @@ export function DocumentUploadForm({ clientId, applicationId, travelRequestId, c
       : claimId ? { kind: "claim", recordId: claimId, requirementId }
         : applicationId ? { kind: "application", recordId: applicationId, requirementId } : null
     : null;
-  if (target) return <RequirementAttachmentPicker
-    clientId={clientId}
-    target={target}
-    label={requirementLabel ?? "This requirement"}
-    requirement={requirement}
-    onAttached={(receipt) => { onAttached?.(receipt); onUploaded?.(); }}
-  />;
+  if (target) return <div className="min-w-0 space-y-1">
+    <RequirementAttachmentPicker
+      key={`${target.kind}:${target.recordId}:${target.requirementId}:${pickerRevision}`}
+      clientId={clientId}
+      target={target}
+      label={requirementLabel ?? "This requirement"}
+      requirement={requirement}
+      disabled={disabled || attachmentBusy}
+      onBusyChange={setPickerBusy}
+      onAttached={(receipt) => { setAttachmentRevision((current) => current + 1); onAttached?.(receipt); onUploaded?.(); }}
+    />
+    <RequirementAttachmentList
+      target={target}
+      label={requirementLabel ?? "This requirement"}
+      revision={attachmentRevision}
+      disabled={disabled || pickerBusy}
+      onBusyChange={setAttachmentBusy}
+      onRemoved={(result) => {
+        setAttachmentRevision((current) => current + 1);
+        // Only existing-target pickers remount; staged wizard selections stay untouched.
+        setPickerRevision((current) => current + 1);
+        onRemoved?.(result);
+      }}
+    />
+  </div>;
 
   return (
     <form
