@@ -141,7 +141,13 @@ export function ProposalCard({
   const hasFiledProposal = !uploaded?.confirming && !!shownDocument && !!status && status !== "Requested";
   const documentRow = hasFiledProposal && shownDocument ? (
     <div className="flex items-stretch overflow-hidden rounded-md border border-border-soft">
-      <a href={`/api/documents/${shownDocument.id}/download`} className="flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-[12.5px] font-semibold text-brand-hover transition-colors hover:bg-hover">
+      <a
+        href={`/api/documents/${shownDocument.id}/download`}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={`Open ${shownDocument.name} in a new tab`}
+        className="flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-[12.5px] font-semibold text-brand-hover transition-colors hover:bg-hover"
+      >
         <I.fileText size={15} className="shrink-0" />
         <span className="truncate">{shownDocument.name}</span>
       </a>

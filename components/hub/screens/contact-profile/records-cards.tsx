@@ -144,6 +144,10 @@ export function DocumentsCard({ client, documents }: { client: Client; documents
                   </div>
                   <a
                     href={`/api/documents/${d.id}/download`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`Open ${d.name} in a new tab`}
+                    title={`Open ${d.name} in a new tab`}
                     className="rounded-md px-1.5 py-1 text-[11.5px] font-semibold text-brand-hover hover:bg-hover"
                   >
                     <I.download size={13} />
