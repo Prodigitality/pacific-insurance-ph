@@ -39,6 +39,10 @@ interface ListScreenProps<T extends FilterableRow> {
   /** Second filter dimension, shown in the Filters popover. */
   filters2?: string[];
   filters2Label?: string;
+  /** Extra row predicate, ANDed after the chip filters and before text search; `rows` still drives counts. */
+  rowMatches?: (row: T) => boolean;
+  /** Extra filter controls, shown in a wrapping row between the toolbar and the table. */
+  filterBar?: ReactNode;
   rows: T[];
   columns: Column<T>[];
   defaultSort: { key: keyof T; dir: "asc" | "desc" };
@@ -84,6 +88,8 @@ export function ListScreen<T extends FilterableRow>({
   filterMatches,
   filters2,
   filters2Label,
+  rowMatches,
+  filterBar,
   rows,
   columns,
   defaultSort,
@@ -112,6 +118,7 @@ export function ListScreen<T extends FilterableRow>({
     view = view.filter((r) => (filterMatches ? filterMatches(r, activeFilter) : r._filter === activeFilter));
   }
   if (filters2 && activeFilter2 !== "All") view = view.filter((r) => r._filter2 === activeFilter2);
+  if (rowMatches) view = view.filter(rowMatches);
   if (q.trim()) {
     const ql = q.toLowerCase();
     view = view.filter((r) =>
@@ -223,6 +230,9 @@ export function ListScreen<T extends FilterableRow>({
             </span>
           </div>
         </div>
+        {filterBar && (
+          <div className="flex flex-wrap items-end gap-3 border-b border-border-soft px-4 py-[11px]">{filterBar}</div>
+        )}
 
         <Table stickyNameColumn={stickyNameColumn}>
           <thead>

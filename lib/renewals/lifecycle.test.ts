@@ -8,9 +8,12 @@ import {
   isNoticeMissing,
   isRetainedRenewal,
   manilaTodayIso,
+  matchesRenewalDueFilter,
   oneYearAfter,
+  renewalDueFilterProblem,
   renewedExpiryProblem,
   suggestedRenewedExpiry,
+  type RenewalDueFilter,
 } from "./lifecycle";
 
 const TODAY = "2026-11-20";
@@ -211,5 +214,85 @@ describe("renewedExpiryProblem", () => {
 
   it("accepts the last valid calendar day", () => {
     expect(renewedExpiryProblem(paid, "9999-12-31", TODAY)).toBeNull();
+  });
+});
+
+describe("renewal due-date filter", () => {
+  const due = (renewalDueDate: string | null) => ({ renewalDueDate });
+  const month = (year: number, m: number): RenewalDueFilter => ({ mode: "month", year, month: m });
+  const range = (from: string, to: string): RenewalDueFilter => ({ mode: "range", from, to });
+
+  it("keeps every row, including undated ones, with no restriction", () => {
+    for (const filter of [{ mode: "any" } as const, range("", "")]) {
+      expect(renewalDueFilterProblem(filter)).toBeNull();
+      expect(matchesRenewalDueFilter(due("2026-11-10"), filter)).toBe(true);
+      expect(matchesRenewalDueFilter(due(null), filter)).toBe(true);
+      expect(matchesRenewalDueFilter(due("not-a-date"), filter)).toBe(true);
+    }
+  });
+
+  it("selects a whole month, by its first and last day, and nothing outside it", () => {
+    const november = month(2026, 11);
+    expect(matchesRenewalDueFilter(due("2026-11-01"), november)).toBe(true);
+    expect(matchesRenewalDueFilter(due("2026-11-30"), november)).toBe(true);
+    expect(matchesRenewalDueFilter(due("2026-10-31"), november)).toBe(false);
+    expect(matchesRenewalDueFilter(due("2026-12-01"), november)).toBe(false);
+    expect(matchesRenewalDueFilter(due("2027-11-15"), november)).toBe(false);
+  });
+
+  it("handles leap day and year-edge months", () => {
+    expect(matchesRenewalDueFilter(due("2028-02-29"), month(2028, 2))).toBe(true);
+    expect(matchesRenewalDueFilter(due("2028-03-01"), month(2028, 2))).toBe(false);
+    expect(matchesRenewalDueFilter(due("2026-12-31"), month(2026, 12))).toBe(true);
+    expect(matchesRenewalDueFilter(due("2027-01-01"), month(2026, 12))).toBe(false);
+    expect(matchesRenewalDueFilter(due("0999-05-05"), month(999, 5))).toBe(true);
+  });
+
+  it("excludes undated and malformed due dates when a month or bound is active", () => {
+    expect(matchesRenewalDueFilter(due(null), month(2026, 11))).toBe(false);
+    expect(matchesRenewalDueFilter(due("2026-11-31"), month(2026, 11))).toBe(false);
+    expect(matchesRenewalDueFilter(due(null), range("2026-11-01", ""))).toBe(false);
+    expect(matchesRenewalDueFilter(due("2026-02-30"), range("", "2026-12-31"))).toBe(false);
+  });
+
+  it("includes both range endpoints and treats equal bounds as that single day", () => {
+    const nov = range("2026-11-10", "2026-11-20");
+    expect(matchesRenewalDueFilter(due("2026-11-10"), nov)).toBe(true);
+    expect(matchesRenewalDueFilter(due("2026-11-20"), nov)).toBe(true);
+    expect(matchesRenewalDueFilter(due("2026-11-09"), nov)).toBe(false);
+    expect(matchesRenewalDueFilter(due("2026-11-21"), nov)).toBe(false);
+    const oneDay = range("2026-11-15", "2026-11-15");
+    expect(matchesRenewalDueFilter(due("2026-11-15"), oneDay)).toBe(true);
+    expect(matchesRenewalDueFilter(due("2026-11-14"), oneDay)).toBe(false);
+    expect(matchesRenewalDueFilter(due("2026-11-16"), oneDay)).toBe(false);
+  });
+
+  it("treats a blank bound as open", () => {
+    expect(matchesRenewalDueFilter(due("2030-01-01"), range("2026-11-10", ""))).toBe(true);
+    expect(matchesRenewalDueFilter(due("2026-11-09"), range("2026-11-10", ""))).toBe(false);
+    expect(matchesRenewalDueFilter(due("2020-01-01"), range("", "2026-11-10"))).toBe(true);
+    expect(matchesRenewalDueFilter(due("2026-11-11"), range("", "2026-11-10"))).toBe(false);
+  });
+
+  it("names an unusable filter and matches nothing", () => {
+    expect(renewalDueFilterProblem(month(2026, 13))).toBe("Choose a valid month and year.");
+    expect(renewalDueFilterProblem(month(2026, 0))).toBe("Choose a valid month and year.");
+    expect(renewalDueFilterProblem(month(0, 5))).toBe("Choose a valid month and year.");
+    expect(renewalDueFilterProblem(month(10000, 5))).toBe("Choose a valid month and year.");
+    expect(renewalDueFilterProblem(month(2026.5, 5))).toBe("Choose a valid month and year.");
+    expect(renewalDueFilterProblem(range("2026-02-30", ""))).toBe("Enter a valid From date.");
+    expect(renewalDueFilterProblem(range("", "garbage"))).toBe("Enter a valid To date.");
+    expect(renewalDueFilterProblem(range("2026-11-20", "2026-11-10"))).toBe("From must be on or before To.");
+    expect(matchesRenewalDueFilter(due("2026-11-15"), month(2026, 13))).toBe(false);
+    expect(matchesRenewalDueFilter(due("2026-11-15"), range("2026-11-20", "2026-11-10"))).toBe(false);
+    expect(matchesRenewalDueFilter(due("2026-11-15"), range("bad", ""))).toBe(false);
+  });
+
+  it("filters by due date alone: an Upcoming renewal with no carrier notice still matches", () => {
+    const upcoming = { status: "Upcoming", noticeReceivedDate: null, renewalDueDate: "2026-12-05" };
+    expect(matchesRenewalDueFilter(upcoming, month(2026, 12))).toBe(true);
+    expect(matchesRenewalDueFilter(upcoming, range("2026-12-01", "2026-12-31"))).toBe(true);
+    expect(matchesRenewalDueFilter({ ...upcoming, status: "Lapsed", noticeReceivedDate: "2026-11-01" }, month(2026, 12))).toBe(true);
+    expect(matchesRenewalDueFilter(upcoming, month(2026, 11))).toBe(false);
   });
 });
