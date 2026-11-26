@@ -13,14 +13,22 @@ import type { TravelDraft } from "@/lib/queries/travel-drafts";
 import type { TravelRequest } from "@/lib/repositories/travel";
 import { money, moneyTotals, peso, pesoShort } from "@/lib/format";
 import { isSelectProduct, planLimitDescription } from "@/lib/products/select-variant";
-import { canMarkLapsed, isNoticeMissing, manilaTodayIso, type RenewalQueueRow } from "@/lib/renewals/lifecycle";
+import {
+  canMarkLapsed,
+  isNoticeMissing,
+  manilaTodayIso,
+  matchesRenewalDueFilter,
+  renewalDueFilterProblem,
+  type RenewalDueFilter,
+  type RenewalQueueRow,
+} from "@/lib/renewals/lifecycle";
 import { I } from "../icons";
 import { useRecordNav } from "../nav";
 import { usePersona } from "../persona";
 import { useOverlays } from "../overlays/overlay-provider";
 import { RenewalNoticeReceivedModal } from "../overlays/renewal-notice-received";
 import { RenewalMarkRenewedModal } from "../overlays/renewal-mark-renewed";
-import { Avatar, Btn, DueCell, StatusBadge } from "../primitives";
+import { Avatar, Btn, DueCell, INPUT, SEL, StatusBadge } from "../primitives";
 import { ClientCell, Row, Td } from "../table";
 import { ListScreen } from "./list-screen";
 
@@ -264,6 +272,9 @@ export function PoliciesLive({ rows }: { rows: Policy[] }) {
 }
 
 /* --------------------------------- Renewals -------------------------------- */
+const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const DUE_FILTER_FIELD_LABEL = "text-[11.5px] font-bold uppercase tracking-[0.05em] text-subtle";
+
 export function RenewalsLive({ rows, noticeRequestOffsetDays, canSyncPolicies }: {
   rows: RenewalQueueRow[];
   /** Settings "Carrier notice request" day offset from the due date; null when the rule is absent. */
@@ -281,8 +292,42 @@ export function RenewalsLive({ rows, noticeRequestOffsetDays, canSyncPolicies }:
   const [receiptRenewal, setReceiptRenewal] = useState<Renewal | null>(null);
   const [renewedRenewal, setRenewedRenewal] = useState<Renewal | null>(null);
   const [lapsingId, setLapsingId] = useState<string | null>(null);
+  // Due-date filter: separate state per mode so switching modes keeps each mode's inputs.
+  const [dueMode, setDueMode] = useState<RenewalDueFilter["mode"]>("any");
+  const [dueMonth, setDueMonth] = useState(() => Number(manilaTodayIso().slice(5, 7)));
+  const [dueYear, setDueYear] = useState(() => Number(manilaTodayIso().slice(0, 4)));
+  const [dueFrom, setDueFrom] = useState("");
+  const [dueTo, setDueTo] = useState("");
   const todayIso = manilaTodayIso();
   const noticeMissing = (r: RenewalQueueRow) => isNoticeMissing(r, todayIso, noticeRequestOffsetDays);
+  const dueFilter: RenewalDueFilter =
+    dueMode === "month" ? { mode: "month", year: dueYear, month: dueMonth }
+    : dueMode === "range" ? { mode: "range", from: dueFrom, to: dueTo }
+    : { mode: "any" };
+  const dueProblem = renewalDueFilterProblem(dueFilter);
+  // Years that actually occur in the loaded queue, plus the current (and selected) year.
+  const dueYears = [
+    ...new Set([
+      Number(todayIso.slice(0, 4)),
+      dueYear,
+      ...rows.flatMap((r) => {
+        const match = /^(\d{4})-\d{2}-\d{2}$/.exec(r.renewalDueDate ?? "");
+        const year = match ? Number(match[1]) : 0;
+        return year >= 1 && year <= 9999 ? [year] : [];
+      }),
+    ]),
+  ].sort((a, b) => a - b);
+  const clearDueFilter = () => {
+    setDueMode("any");
+    setDueMonth(Number(todayIso.slice(5, 7)));
+    setDueYear(Number(todayIso.slice(0, 4)));
+    setDueFrom("");
+    setDueTo("");
+  };
+  const dueErrorId = "renewal-due-filter-error";
+  const describedBy = dueProblem ? dueErrorId : undefined;
+  const fromInvalid = dueProblem === "Enter a valid From date." || dueProblem === "From must be on or before To.";
+  const toInvalid = dueProblem === "Enter a valid To date." || dueProblem === "From must be on or before To.";
 
   const syncPolicies = () => startSyncTransition(async () => {
     const result = await backfillPolicyRenewalsAction();
@@ -371,6 +416,100 @@ export function RenewalsLive({ rows, noticeRequestOffsetDays, canSyncPolicies }:
         f === "Open" ? r._filter !== "Renewed" && r._filter !== "Lapsed"
         : f === "Notice missing" ? noticeMissing(r)
         : r._filter === f}
+      rowMatches={(r) => matchesRenewalDueFilter(r, dueFilter)}
+      filterBar={
+        <>
+          <label className="flex flex-col gap-1">
+            <span className={DUE_FILTER_FIELD_LABEL}>Renewal date</span>
+            <select
+              className={SEL}
+              aria-label="Renewal date filter"
+              value={dueMode}
+              onChange={(e) => setDueMode(e.target.value as RenewalDueFilter["mode"])}
+            >
+              <option value="any">Any date</option>
+              <option value="month">Month</option>
+              <option value="range">Date range</option>
+            </select>
+          </label>
+          {dueMode === "month" && (
+            <>
+              <label className="flex flex-col gap-1">
+                <span className={DUE_FILTER_FIELD_LABEL}>Month</span>
+                <select
+                  className={SEL}
+                  value={dueMonth}
+                  aria-invalid={dueProblem ? true : undefined}
+                  aria-describedby={describedBy}
+                  onChange={(e) => setDueMonth(Number(e.target.value))}
+                >
+                  {MONTH_NAMES.map((name, i) => (
+                    <option key={name} value={i + 1}>{name}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className={DUE_FILTER_FIELD_LABEL}>Year</span>
+                <select
+                  className={SEL}
+                  value={dueYear}
+                  aria-invalid={dueProblem ? true : undefined}
+                  aria-describedby={describedBy}
+                  onChange={(e) => setDueYear(Number(e.target.value))}
+                >
+                  {dueYears.map((year) => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
+              </label>
+            </>
+          )}
+          {dueMode === "range" && (
+            <>
+              <label className="flex flex-col gap-1">
+                <span className={DUE_FILTER_FIELD_LABEL}>From</span>
+                <input
+                  type="date"
+                  className={INPUT}
+                  style={{ width: 150 }}
+                  max="9999-12-31"
+                  value={dueFrom}
+                  aria-invalid={fromInvalid ? true : undefined}
+                  aria-describedby={fromInvalid ? dueErrorId : undefined}
+                  onChange={(e) => setDueFrom(e.target.value)}
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className={DUE_FILTER_FIELD_LABEL}>To</span>
+                <input
+                  type="date"
+                  className={INPUT}
+                  style={{ width: 150 }}
+                  max="9999-12-31"
+                  value={dueTo}
+                  aria-invalid={toInvalid ? true : undefined}
+                  aria-describedby={toInvalid ? dueErrorId : undefined}
+                  onChange={(e) => setDueTo(e.target.value)}
+                />
+              </label>
+            </>
+          )}
+          {dueMode !== "any" && (
+            <button
+              type="button"
+              onClick={clearDueFilter}
+              className="h-9 text-[12px] font-semibold text-brand-hover hover:text-brand"
+            >
+              Clear date filter
+            </button>
+          )}
+          {dueProblem && (
+            <p id={dueErrorId} role="alert" className="basis-full text-[12px] font-semibold text-red">
+              {dueProblem}
+            </p>
+          )}
+        </>
+      }
       rows={rows.map((r) => ({ ...r, _filter: r.status }))}
       defaultSort={{ key: "renewalDueDate", dir: "asc" }}
       emptyText="No renewals tracked yet."

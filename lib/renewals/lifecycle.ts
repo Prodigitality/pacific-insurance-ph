@@ -87,6 +87,48 @@ function isRealCalendarDate(value: string): boolean {
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
 
+/** Which renewals the queue's due-date filter keeps; filters by `renewalDueDate` only. */
+export type RenewalDueFilter =
+  | { mode: "any" }
+  | { mode: "month"; year: number; month: number }
+  | { mode: "range"; from: string; to: string };
+
+/** Message for an unusable filter (it then matches nothing); null when the filter can be applied. */
+export function renewalDueFilterProblem(filter: RenewalDueFilter): string | null {
+  if (filter.mode === "month") {
+    const { year, month } = filter;
+    return Number.isInteger(year) && year >= 1 && year <= 9999 && Number.isInteger(month) && month >= 1 && month <= 12
+      ? null
+      : "Choose a valid month and year.";
+  }
+  if (filter.mode === "range") {
+    if (filter.from !== "" && !isRealCalendarDate(filter.from)) return "Enter a valid From date.";
+    if (filter.to !== "" && !isRealCalendarDate(filter.to)) return "Enter a valid To date.";
+    if (filter.from !== "" && filter.to !== "" && filter.from > filter.to) return "From must be on or before To.";
+  }
+  return null;
+}
+
+/**
+ * Whether a renewal's due date passes the filter. Bounds are inclusive and compared as validated
+ * YYYY-MM-DD strings (no timezone-sensitive Date). An active month or bound excludes a missing or
+ * malformed due date; an unrestricted filter keeps every row.
+ */
+export function matchesRenewalDueFilter(
+  renewal: Pick<Renewal, "renewalDueDate">,
+  filter: RenewalDueFilter,
+): boolean {
+  if (renewalDueFilterProblem(filter)) return false;
+  if (filter.mode === "any") return true;
+  if (filter.mode === "range" && filter.from === "" && filter.to === "") return true;
+  const due = renewal.renewalDueDate;
+  if (!due || !isRealCalendarDate(due)) return false;
+  if (filter.mode === "month") {
+    return due.slice(0, 7) === `${String(filter.year).padStart(4, "0")}-${String(filter.month).padStart(2, "0")}`;
+  }
+  return (filter.from === "" || due >= filter.from) && (filter.to === "" || due <= filter.to);
+}
+
 /**
  * Client-side pre-check for "Mark renewed". Null means acceptable. The database re-checks against
  * the policy's current dates and the live revision, so this only spares a round trip.
