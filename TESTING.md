@@ -62,6 +62,11 @@ client-page Live preview. Preview helpers were removed; component ESLint and the
 Impeccable detector passed. This was layout acceptance only: no upload, status mutation or
 keyboard workflow was rerun, and it does not close the broader browser checklist above.
 
+Timeline filters: the user accepted Live variant 2, a single horizontally scrolling row with
+12.5px labels, an active underline and visible keyboard focus. Filtering logic is unchanged;
+buttons expose `aria-pressed`. Preview helpers were removed; component ESLint and the targeted
+Impeccable detector passed. Keyboard/scroll interaction was not independently exercised.
+
 ## November 4: real Gmail sending and replies
 
 Prerequisites: schema through `0059`, a connected `admin@pacificinsuranceph.com` with the send

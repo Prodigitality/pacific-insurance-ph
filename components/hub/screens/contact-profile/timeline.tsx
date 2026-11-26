@@ -88,22 +88,28 @@ export function ContactTimeline({ timeline }: { timeline: TimelineEntry[] }) {
   return (
     <Card>
       <CardHead iconName="clock" title="Timeline" count={visibleTimeline.length} />
-            <div className="flex flex-wrap gap-1.5 border-b border-border-soft px-[18px] py-2.5">
-              {FILTERS.map((f) => (
-                <button
-                  key={f.label}
-                  onClick={() => setTimelineFilter(f.label)}
-                  className={cn(
-                    "rounded-full border px-2.5 py-1 text-[11.5px] font-semibold transition-colors",
-                    timelineFilter === f.label
-                      ? "border-brand bg-brand-soft text-brand-hover"
-                      : "border-border bg-card text-muted-foreground hover:bg-hover",
-                  )}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
+      <div
+        className="flex gap-4 overflow-x-auto border-b border-border-soft px-[18px] [scrollbar-width:thin]"
+        role="group"
+        aria-label="Filter timeline"
+      >
+        {FILTERS.map((f) => (
+          <button
+            key={f.label}
+            type="button"
+            aria-pressed={timelineFilter === f.label}
+            onClick={() => setTimelineFilter(f.label)}
+            className={cn(
+              "min-h-11 shrink-0 rounded-none border-0 border-b-2 bg-transparent px-0 py-2.5 text-[12.5px] font-[650] leading-normal transition-colors duration-[120ms] hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-[-3px]",
+              timelineFilter === f.label
+                ? "border-brand-hover text-brand-hover"
+                : "border-transparent text-muted-foreground",
+            )}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
             <div className="py-1.5">
               {visibleTimeline.length === 0 && (
                 <p className="px-[18px] py-4 text-[13px] text-muted-foreground">
