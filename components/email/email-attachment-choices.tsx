@@ -9,6 +9,7 @@ import { PdfUpload } from "@/components/documents/pdf-upload";
 import type { EmailDocumentOption } from "@/lib/communications/outbound-email.types";
 import type { RequirementEmailAttachment } from "@/lib/documents/requirement-attachment.types";
 import { I } from "@/components/hub/icons";
+import { formatBytes } from "./email-send-controls";
 
 type EmailOriginal = { messageId: string; partId: string };
 
