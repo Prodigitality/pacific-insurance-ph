@@ -292,7 +292,8 @@ describe("renewal due-date filter", () => {
     const upcoming = { status: "Upcoming", noticeReceivedDate: null, renewalDueDate: "2026-12-05" };
     expect(matchesRenewalDueFilter(upcoming, month(2026, 12))).toBe(true);
     expect(matchesRenewalDueFilter(upcoming, range("2026-12-01", "2026-12-31"))).toBe(true);
-    expect(matchesRenewalDueFilter({ ...upcoming, status: "Lapsed", noticeReceivedDate: "2026-11-01" }, month(2026, 12))).toBe(true);
+    const closedWithNotice = { ...upcoming, status: "Lapsed", noticeReceivedDate: "2026-11-01" };
+    expect(matchesRenewalDueFilter(closedWithNotice, month(2026, 12))).toBe(true);
     expect(matchesRenewalDueFilter(upcoming, month(2026, 11))).toBe(false);
   });
 });

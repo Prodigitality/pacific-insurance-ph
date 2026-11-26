@@ -16,6 +16,7 @@ import { isSelectProduct, planLimitDescription } from "@/lib/products/select-var
 import {
   canMarkLapsed,
   isNoticeMissing,
+  isRealCalendarDate,
   manilaTodayIso,
   matchesRenewalDueFilter,
   renewalDueFilterProblem,
@@ -310,11 +311,7 @@ export function RenewalsLive({ rows, noticeRequestOffsetDays, canSyncPolicies }:
     ...new Set([
       Number(todayIso.slice(0, 4)),
       dueYear,
-      ...rows.flatMap((r) => {
-        const match = /^(\d{4})-\d{2}-\d{2}$/.exec(r.renewalDueDate ?? "");
-        const year = match ? Number(match[1]) : 0;
-        return year >= 1 && year <= 9999 ? [year] : [];
-      }),
+      ...rows.flatMap((r) => (r.renewalDueDate && isRealCalendarDate(r.renewalDueDate) ? [Number(r.renewalDueDate.slice(0, 4))] : [])),
     ]),
   ].sort((a, b) => a - b);
   const clearDueFilter = () => {
