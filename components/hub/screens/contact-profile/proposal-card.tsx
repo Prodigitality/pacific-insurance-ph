@@ -96,30 +96,40 @@ export function ProposalCard({
       return;
     }
     startDelete(async () => {
+      // `removed`: the record is gone, even if its file cleanup failed. `unknown`: the request
+      // itself failed, so the server may still have committed. Either way our upload stand-in
+      // must go: with no proposal left, `uploaded.base` would match the refreshed prop again.
+      let outcome: "removed" | "failed" | "unknown" = "unknown";
       try {
         const res = await deleteProposalPdfAction(client.id, documentId);
-        // A removed record (even with a failed file cleanup) must not leave our upload behind:
-        // with no proposal left, `uploaded.base` would match the refreshed prop and reappear.
-        if (res.ok || ("recordRemoved" in res && res.recordRemoved)) {
-          setUploaded(null);
-          setReplacing(false);
-          onStatusChange("Requested");
-        }
-        if (res.ok)
+        if (res.ok) {
+          outcome = "removed";
           overlays.toast(
             res.data.originalPreserved ? "Proposal PDF unlinked" : "Proposal PDF deleted",
             res.data.originalPreserved
               ? `${client.fullName}: proposal tracking is back to Requested. The Inbox original stays in Documents.`
               : `${client.fullName}: proposal tracking is back to Requested.`,
           );
-        else if ("recordRemoved" in res && res.recordRemoved) overlays.toast("Proposal file not fully removed", res.error);
-        else overlays.toast("Couldn’t delete proposal", res.error);
+        } else if ("recordRemoved" in res && res.recordRemoved) {
+          outcome = "removed";
+          overlays.toast("Proposal file not fully removed", res.error);
+        } else {
+          outcome = "failed";
+          overlays.toast("Couldn’t delete proposal", res.error);
+        }
       } catch {
         overlays.toast("Couldn’t delete proposal", "The request didn’t complete. Refresh the record to see its current state.");
-      } finally {
-        deleteRequested.current = false;
-        router.refresh();
       }
+      deleteRequested.current = false;
+      // Local cleanup commits together with the refreshed server props.
+      startDelete(() => {
+        if (outcome !== "failed") {
+          setUploaded(null);
+          setReplacing(false);
+        }
+        if (outcome === "removed") onStatusChange("Requested");
+        router.refresh();
+      });
     });
   };
 

@@ -7,8 +7,9 @@ const mocks = vi.hoisted(() => ({
   recordAudit: vi.fn(),
   revalidatePath: vi.fn(),
   removeObject: vi.fn(),
-  documents: { deleteProposal: vi.fn() },
+  documents: { deleteProposal: vi.fn(), create: vi.fn(), update: vi.fn(), listByClient: vi.fn() },
   clients: { findById: vi.fn(), update: vi.fn() },
+  uploaded: { registerUploadedPdf: vi.fn(), registerUploadedProposalReceipt: vi.fn(), registerUploadedProposalReplacement: vi.fn() },
 }));
 
 vi.mock("server-only", () => ({}));
@@ -27,11 +28,11 @@ vi.mock("@/lib/repositories/documents", () => ({ getDocumentsRepository: () => m
 vi.mock("@/lib/repositories/clients", () => ({ getClientsRepository: () => mocks.clients }));
 vi.mock("@/lib/repositories/dependents", () => ({ getDependentsRepository: vi.fn() }));
 vi.mock("@/lib/repositories/integration-settings", () => ({ getIntegrationSettingsRepository: vi.fn() }));
-vi.mock("@/lib/documents/uploaded-pdf", () => ({ registerUploadedPdf: vi.fn(), registerUploadedProposalReceipt: vi.fn() }));
+vi.mock("@/lib/documents/uploaded-pdf", () => mocks.uploaded);
 vi.mock("@/lib/queries/lead-status-inference", () => ({ withInferredLeadStatus: vi.fn() }));
 vi.mock("@/lib/products/active-products", () => ({ checkProductInterest: vi.fn() }));
 
-import { deleteProposalPdfAction } from "./actions";
+import { deleteProposalPdfAction, replaceProposalPdfAction } from "./actions";
 
 const CLIENT_ID = "client-1";
 const DOCUMENT_ID = "doc-proposal";
@@ -154,5 +155,92 @@ describe("deleteProposalPdfAction Storage cleanup failure", () => {
     // The record did change, so the profile must refresh rather than keep showing the PDF.
     for (const path of ["/prospects", `/clients/${CLIENT_ID}`, "/documents"]) expect(mocks.revalidatePath).toHaveBeenCalledWith(path);
     logged.mockRestore();
+  });
+
+  it("stays an explicit partial outcome when the cleanup audit and activity also fail", async () => {
+    mocks.documents.deleteProposal.mockResolvedValue({ storagePath: STORAGE_PATH, originalPreserved: false });
+    mocks.removeObject.mockRejectedValue(new Error("Storage down"));
+    mocks.recordAudit.mockRejectedValue(new Error("audit down"));
+    mocks.recordActivity.mockRejectedValue(new Error("activity down"));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await remove();
+
+    expect(result).toMatchObject({ ok: false, recordRemoved: true });
+    for (const path of ["/prospects", `/clients/${CLIENT_ID}`, "/documents"]) expect(mocks.revalidatePath).toHaveBeenCalledWith(path);
+    logged.mockRestore();
+  });
+});
+
+describe("deleteProposalPdfAction follow-up failures after the database commit", () => {
+  it("still reports the completed removal and refreshes when the activity entry fails", async () => {
+    mocks.documents.deleteProposal.mockResolvedValue({ storagePath: STORAGE_PATH, originalPreserved: false });
+    mocks.recordActivity.mockRejectedValue(new Error("activity down"));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await remove();
+
+    expect(result).toEqual({ ok: true, data: { originalPreserved: false } });
+    expect(mocks.removeObject).toHaveBeenCalledWith(STORAGE_PATH);
+    for (const path of ["/prospects", `/clients/${CLIENT_ID}`, "/documents"]) expect(mocks.revalidatePath).toHaveBeenCalledWith(path);
+    logged.mockRestore();
+  });
+});
+
+describe("replaceProposalPdfAction", () => {
+  const UPLOAD_PATH = "client-1/0b6f3c3e-2f7a-4c1e-9a43-5b1f4d7c2a10.pdf";
+  const lead = (overrides: Record<string, unknown> = {}) => ({
+    id: CLIENT_ID, fullName: "Ana Cruz", lifecycleStage: "Lead", proposalStatus: "Received", productInterest: "Select", ...overrides,
+  });
+  const replace = () => replaceProposalPdfAction(CLIENT_ID, UPLOAD_PATH, "corrected.pdf");
+
+  /** The old non-atomic path: a separate insert followed by independent status updates. */
+  function expectNoLegacyWrites() {
+    expect(mocks.uploaded.registerUploadedPdf).not.toHaveBeenCalled();
+    expect(mocks.documents.create).not.toHaveBeenCalled();
+    expect(mocks.documents.update).not.toHaveBeenCalled();
+  }
+
+  beforeEach(() => {
+    mocks.getActor.mockResolvedValue({ id: "staff-1", fullName: "Eman", role: "Assistant" });
+    mocks.clients.findById.mockResolvedValue(lead());
+  });
+
+  it("files the replacement through the single locked transaction", async () => {
+    mocks.uploaded.registerUploadedProposalReplacement.mockResolvedValue({ id: "doc-new", name: "Illustrative proposal — Select (corrected.pdf)" });
+
+    const result = await replace();
+
+    expect(result).toEqual({ ok: true, data: { id: "doc-new", name: "Illustrative proposal — Select (corrected.pdf)" } });
+    expect(mocks.uploaded.registerUploadedProposalReplacement).toHaveBeenCalledWith({
+      clientId: CLIENT_ID, actorId: "staff-1", name: "Illustrative proposal — Select (corrected.pdf)", storagePath: UPLOAD_PATH,
+    });
+    expectNoLegacyWrites();
+    expect(mocks.clients.update).not.toHaveBeenCalled();
+    for (const path of ["/prospects", `/clients/${CLIENT_ID}`, "/documents"]) expect(mocks.revalidatePath).toHaveBeenCalledWith(path);
+  });
+
+  it("reports a removal that won the race and creates no document", async () => {
+    const message = "This proposal changed since the page loaded (it may have been deleted), so nothing was replaced. Refresh and try again.";
+    mocks.uploaded.registerUploadedProposalReplacement.mockRejectedValue(new Error(message));
+
+    const result = await replace();
+
+    expect(result).toEqual({ ok: false, error: message });
+    expectNoLegacyWrites();
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["already back at Requested", { proposalStatus: "Requested" }],
+    ["no longer a Lead", { lifecycleStage: "Client" }],
+  ])("refuses a lead %s before filing anything", async (_case, overrides) => {
+    mocks.clients.findById.mockResolvedValue(lead(overrides));
+
+    const result = await replace();
+
+    expect(result.ok).toBe(false);
+    expect(mocks.uploaded.registerUploadedProposalReplacement).not.toHaveBeenCalled();
+    expectNoLegacyWrites();
   });
 });

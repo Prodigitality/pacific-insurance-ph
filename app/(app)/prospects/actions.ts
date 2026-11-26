@@ -27,7 +27,7 @@ import {
 } from "@/lib/repositories/clients";
 import { PAYMENT_FREQUENCIES } from "@/lib/db-enums";
 import { ageFromDob } from "@/components/hub/overlays/wizard/wizard-data";
-import { registerUploadedPdf, registerUploadedProposalReceipt } from "@/lib/documents/uploaded-pdf";
+import { registerUploadedProposalReceipt, registerUploadedProposalReplacement } from "@/lib/documents/uploaded-pdf";
 import { getDependentsRepository } from "@/lib/repositories/dependents";
 import { getDocumentsRepository } from "@/lib/repositories/documents";
 import { getIntegrationSettingsRepository } from "@/lib/repositories/integration-settings";
@@ -632,7 +632,11 @@ export async function recordProposalReceivedAction(
   }
 }
 
-/** Swap in a corrected proposal PDF; earlier ones are marked Replaced, never deleted. */
+/**
+ * Swap in a corrected proposal PDF; earlier ones are marked Replaced, never deleted. Filing the
+ * new PDF and retiring the old ones is one transaction under the client lock, serialized with
+ * proposal removal and receipt: if a removal won, nothing is filed.
+ */
 export async function replaceProposalPdfAction(
   clientId: string,
   path: string,
@@ -643,42 +647,17 @@ export async function replaceProposalPdfAction(
     await assertRecordAccess("client", clientId);
     const lead = await getClientsRepository().findById(clientId);
     if (!lead) return { ok: false, error: "Lead not found." };
+    // Early, friendlier refusals; the transaction rechecks both under the lock.
     if (lead.lifecycleStage !== "Lead")
       return { ok: false, error: `${lead.fullName} is no longer a Lead.` };
     if (!lead.proposalStatus || lead.proposalStatus === "Requested")
       return { ok: false, error: "There’s no received proposal to replace yet." };
 
-    const docs = getDocumentsRepository();
-    const previous = (await docs.listByClient(clientId)).filter(
-      (d) => d.documentType === "Illustrative Proposal" && d.status !== "Replaced",
-    );
-    const product = lead.productInterest ?? "carrier";
-    const doc = await registerUploadedPdf({
-      path,
-      name: proposalDocumentName(product, fileName),
+    const doc = await registerUploadedProposalReplacement({
       clientId,
-      documentType: "Illustrative Proposal",
       actorId: actor.id,
-    });
-    await Promise.all(
-      previous.map(async (d) => {
-        await docs.update(d.id, { status: "Replaced" });
-        await recordAudit({
-          actorId: actor.id,
-          action: "update",
-          tableName: "documents",
-          recordId: d.id,
-          previousValue: { status: d.status } as Json,
-          newValue: { status: "Replaced", replacedBy: doc.id } as Json,
-        });
-      }),
-    );
-    await recordActivity({
-      scopeType: "client",
-      scopeId: clientId,
-      activityType: "lead.proposal",
-      summary: `Proposal PDF replaced — ${product} illustrative proposal re-uploaded`,
-      actorId: actor.id,
+      name: proposalDocumentName(lead.productInterest ?? "carrier", fileName),
+      storagePath: path,
     });
 
     revalidatePath("/prospects");
@@ -724,6 +703,12 @@ export async function deleteProposalPdfAction(
     return { ok: false, error: e instanceof Error ? e.message : "Couldn’t delete the proposal PDF." };
   }
 
+  // The database change is committed from here on: nothing below may turn it into an unreported
+  // rejection, so the caller always learns the record was removed and refreshes.
+  revalidatePath("/prospects");
+  revalidatePath(`/clients/${clientId}`);
+  revalidatePath("/documents");
+
   let cleanupFailed = false;
   if (removal.storagePath) {
     try {
@@ -739,24 +724,26 @@ export async function deleteProposalPdfAction(
         tableName: "documents",
         recordId: documentId,
         newValue: { clientId, storagePath: removal.storagePath } as Json,
-      });
+      }).catch(() => console.error("deleteProposalPdfAction: cleanup audit failed", { documentId, storagePath: removal.storagePath }));
     }
   }
 
-  await recordActivity({
-    scopeType: "client",
-    scopeId: clientId,
-    activityType: "lead.proposal",
-    summary: removal.originalPreserved
-      ? "Proposal PDF unlinked; the Inbox original is kept. Proposal back to Requested"
-      : cleanupFailed
-        ? "Proposal PDF record deleted, but its file could not be removed from storage. Proposal back to Requested"
-        : "Proposal PDF deleted. Proposal back to Requested",
-    actorId: actor.id,
-  });
-  revalidatePath("/prospects");
-  revalidatePath(`/clients/${clientId}`);
-  revalidatePath("/documents");
+  try {
+    await recordActivity({
+      scopeType: "client",
+      scopeId: clientId,
+      activityType: "lead.proposal",
+      summary: removal.originalPreserved
+        ? "Proposal PDF unlinked; the Inbox original is kept. Proposal back to Requested"
+        : cleanupFailed
+          ? "Proposal PDF record deleted, but its file could not be removed from storage. Proposal back to Requested"
+          : "Proposal PDF deleted. Proposal back to Requested",
+      actorId: actor.id,
+    });
+  } catch {
+    // The transaction already wrote its audit rows; only the timeline entry is missing.
+    console.error("deleteProposalPdfAction: activity entry failed", { clientId, documentId });
+  }
 
   if (cleanupFailed)
     return {

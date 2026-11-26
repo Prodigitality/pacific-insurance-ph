@@ -66,3 +66,11 @@ export interface ProposalReceiptInput {
   name: string;
   storagePath: string;
 }
+
+/** A corrected client-level proposal PDF, filed by the locked `replace_proposal_pdf` transaction. */
+export interface ProposalReplacementInput {
+  clientId: string;
+  actorId: string;
+  name: string;
+  storagePath: string;
+}

@@ -16,6 +16,7 @@ import type {
   DocumentRecordUpdate,
   NewDocumentRecord,
   ProposalReceiptInput,
+  ProposalReplacementInput,
 } from "./document.entity";
 import type { DocumentsRepository } from "./documents.repository";
 
@@ -67,6 +68,18 @@ function proposalDeletionError(code?: string, message?: string): RepositoryError
           ? "Another record still uses this proposal PDF, so nothing was deleted."
           : "The proposal PDF could not be deleted. Refresh the record and try again.";
   return new RepositoryError(error, { code: code && /^[a-zA-Z0-9_-]{1,64}$/.test(code) ? code : "proposal_delete_failed" });
+}
+
+/** Map `replace_proposal_pdf` failures; like removal, never retain PostgreSQL detail. */
+function proposalReplacementError(code?: string, message?: string): RepositoryError {
+  const error = code === "42501"
+    ? "This lead is not available to your account."
+    : message === "proposal_replace_stale"
+      ? "This proposal changed since the page loaded (it may have been deleted), so nothing was replaced. Refresh and try again."
+      : message === "proposal_replace_invalid"
+        ? "The uploaded PDF could not be filed. Upload it again."
+        : "The proposal PDF could not be replaced. Refresh the record and try again.";
+  return new RepositoryError(error, { code: code && /^[a-zA-Z0-9_-]{1,64}$/.test(code) ? code : "proposal_replace_failed" });
 }
 
 /** supabase-js (service role) implementation of {@link DocumentsRepository}. */
@@ -146,6 +159,19 @@ export class SupabaseDocumentsRepository implements DocumentsRepository {
     if (error || !data) throw new RepositoryError("The proposal could not be received. Check the source record's current proposal state.", { code: "proposal_receipt_failed" });
     const document = await this.findById(data);
     if (!document) throw new RepositoryError("The proposal receipt was saved but its document could not be loaded. Refresh the record.", { code: "proposal_receipt_unavailable" });
+    return document;
+  }
+
+  async replaceProposal(input: ProposalReplacementInput): Promise<DocumentRecord> {
+    const { data, error } = await getSupabaseAdmin().rpc("replace_proposal_pdf", {
+      p_actor_id: input.actorId,
+      p_client_id: input.clientId,
+      p_storage_path: input.storagePath,
+      p_name: input.name,
+    });
+    if (error || !data) throw proposalReplacementError(error?.code, error?.message);
+    const document = await this.findById(data);
+    if (!document) throw new RepositoryError("The replacement was saved but its document could not be loaded. Refresh the record.", { code: "proposal_replace_unavailable" });
     return document;
   }
 
