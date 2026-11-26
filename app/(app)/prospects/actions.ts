@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { getActor, type ActionResult } from "@/lib/actions/context";
 import { assertRecordAccess } from "@/lib/auth/agent-scope";
+import { toAppRole } from "@/lib/auth/permissions";
 import { recordActivity } from "@/lib/activity/log";
 import { recordAudit } from "@/lib/audit/log";
 import {
@@ -32,6 +33,7 @@ import { getDocumentsRepository } from "@/lib/repositories/documents";
 import { getIntegrationSettingsRepository } from "@/lib/repositories/integration-settings";
 import { withInferredLeadStatus } from "@/lib/queries/lead-status-inference";
 import type { Json } from "@/lib/supabase/types";
+import { removeObject } from "@/lib/supabase/storage";
 import { checkProductInterest } from "@/lib/products/active-products";
 import { portalPlanFor, splitFullName } from "@/lib/products/proposal-portal";
 
@@ -686,4 +688,81 @@ export async function replaceProposalPdfAction(
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Couldn’t replace the proposal PDF." };
   }
+}
+
+/**
+ * The proposal record was removed and tracking is back to Requested, but its Storage object could
+ * not be deleted. Not a success: the caller must still drop its local copy of the proposal.
+ */
+export interface ProposalFileCleanupFailure {
+  ok: false;
+  error: string;
+  recordRemoved: true;
+}
+
+/**
+ * L11 / DL9: Admin-only removal of the lead's current proposal PDF. Proposal tracking returns to
+ * Requested; lead stage, status and lifecycle are untouched. A direct upload is deleted (row and
+ * Storage object); an Inbox-filed original is retired as Replaced and kept with its email.
+ *
+ * The database transaction decides everything and runs first. Storage is removed only after it
+ * commits, and a failed removal is reported as a partial outcome, never as a completed deletion.
+ */
+export async function deleteProposalPdfAction(
+  clientId: string,
+  documentId: string,
+): Promise<ActionResult<{ originalPreserved: boolean }> | ProposalFileCleanupFailure> {
+  const actor = await getActor();
+  if (toAppRole(actor.role) !== "admin") return { ok: false, error: "Only an Admin can delete a proposal PDF." };
+
+  let removal: { storagePath: string | null; originalPreserved: boolean };
+  try {
+    await assertRecordAccess("client", clientId);
+    await assertRecordAccess("document", documentId);
+    removal = await getDocumentsRepository().deleteProposal(actor.id, clientId, documentId);
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Couldn’t delete the proposal PDF." };
+  }
+
+  let cleanupFailed = false;
+  if (removal.storagePath) {
+    try {
+      await removeObject(removal.storagePath);
+    } catch {
+      // The bytes are now unreferenced. Keep the path for an Admin to clean up; the Storage
+      // error text is not retained.
+      cleanupFailed = true;
+      console.error("deleteProposalPdfAction: Storage cleanup failed", { documentId, storagePath: removal.storagePath });
+      await recordAudit({
+        actorId: actor.id,
+        action: "proposal.file_cleanup_failed",
+        tableName: "documents",
+        recordId: documentId,
+        newValue: { clientId, storagePath: removal.storagePath } as Json,
+      });
+    }
+  }
+
+  await recordActivity({
+    scopeType: "client",
+    scopeId: clientId,
+    activityType: "lead.proposal",
+    summary: removal.originalPreserved
+      ? "Proposal PDF unlinked; the Inbox original is kept. Proposal back to Requested"
+      : cleanupFailed
+        ? "Proposal PDF record deleted, but its file could not be removed from storage. Proposal back to Requested"
+        : "Proposal PDF deleted. Proposal back to Requested",
+    actorId: actor.id,
+  });
+  revalidatePath("/prospects");
+  revalidatePath(`/clients/${clientId}`);
+  revalidatePath("/documents");
+
+  if (cleanupFailed)
+    return {
+      ok: false,
+      recordRemoved: true,
+      error: "The proposal record was removed and tracking is back to Requested, but the PDF file could not be deleted from storage. The failed cleanup is in the audit log.",
+    };
+  return { ok: true, data: { originalPreserved: removal.originalPreserved } };
 }
