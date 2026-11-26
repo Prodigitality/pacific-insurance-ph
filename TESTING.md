@@ -67,6 +67,16 @@ Timeline filters: the user accepted Live variant 2, a single horizontally scroll
 buttons expose `aria-pressed`. Preview helpers were removed; component ESLint and the targeted
 Impeccable detector passed. Keyboard/scroll interaction was not independently exercised.
 
+Documents replacement scope confirmed in Live: expose Replace only on the current lead
+proposal, using the existing audited proposal replacement action. Replaced history, ordinary
+documents, application/checklist-owned files and other protected associations do not get this
+entry point. Upload errors remain inline; replacement controls and same-row deletion are
+disabled during upload/finalization. The previous PDF remains Replaced.
+TypeScript and targeted component ESLint passed; a temporary server-render smoke proof checked
+eligibility/exclusions and retained historical download access; 16 proposal action tests passed.
+The targeted detector reported no findings. Live ended before this feature was implemented;
+an actual browser upload/replacement through the new Documents entry point was not exercised.
+
 ## November 4: real Gmail sending and replies
 
 Prerequisites: schema through `0059`, a connected `admin@pacificinsuranceph.com` with the send

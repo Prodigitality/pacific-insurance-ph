@@ -1,9 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { deleteDocumentAction } from "@/app/(app)/documents/actions";
+import { replaceProposalPdfAction } from "@/app/(app)/prospects/actions";
+import { PdfUpload } from "@/components/documents/pdf-upload";
 import { DocumentUploadForm } from "@/components/documents/document-upload-form";
 import type { ClientRelatedCounts } from "@/lib/queries/client-summary";
 import type { Client } from "@/lib/repositories/clients/client.entity";
@@ -23,6 +26,13 @@ export interface Doc {
   status: string;
   /** Set when the document is a filed policy copy (H4a). */
   policyId?: string | null;
+  applicationId?: string | null;
+  claimId?: string | null;
+  renewalId?: string | null;
+  travelRequestId?: string | null;
+  applicationRequirementId?: string | null;
+  claimRequirementId?: string | null;
+  travelRequirementId?: string | null;
   /** Free-text note; on an illustrative proposal, the carrier quote recorded at upload. */
   notes?: string | null;
 }
@@ -114,7 +124,17 @@ export function ApplicationRequirementsCard({ applications }: { applications: Ap
 }
 
 export function DocumentsCard({ client, documents }: { client: Client; documents: Doc[] }) {
+  const router = useRouter();
+  const overlays = useOverlays();
   const [addDocumentOpen, setAddDocumentOpen] = useState(false);
+  const [replacingId, setReplacingId] = useState<string | null>(null);
+  const [replacementBusy, setReplacementBusy] = useState(false);
+  const currentProposalId = client.lifecycleStage === "Lead"
+    && client.proposalStatus && client.proposalStatus !== "Requested"
+    ? documents.find((d) => d.documentType === "Illustrative Proposal" && d.status !== "Replaced"
+      && !d.commissionId && !d.policyId && !d.applicationId && !d.claimId && !d.renewalId && !d.travelRequestId
+      && !d.applicationRequirementId && !d.claimRequirementId && !d.travelRequirementId)?.id
+    : undefined;
   return (
     <CollapsibleListCard
       iconName="folder"
@@ -132,33 +152,65 @@ export function DocumentsCard({ client, documents }: { client: Client; documents
                 <p className="px-[18px] py-3 text-[12.5px] text-subtle">No documents uploaded yet.</p>
               )}
               {documents.map((d) => (
-                <div key={d.id} className="flex items-center gap-2.5 border-b border-border-soft px-[18px] py-2.5 last:border-0">
-                  <span className="grid size-[28px] shrink-0 place-items-center rounded-[8px] bg-surface-3 text-muted-foreground">
-                    <I.doc2 size={14} />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-[12.5px] font-semibold">{d.name}</div>
-                    <div className="text-[11px] text-subtle">
-                      {[d.documentType, d.visibility].filter(Boolean).join(" · ")}
+                <div key={d.id} className="border-b border-border-soft px-[18px] py-2.5 last:border-0">
+                  <div className="flex items-center gap-2.5">
+                    <span className="grid size-[28px] shrink-0 place-items-center rounded-[8px] bg-surface-3 text-muted-foreground">
+                      <I.doc2 size={14} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[12.5px] font-semibold">{d.name}</div>
+                      <div className="text-[11px] text-subtle">
+                        {[d.documentType, d.visibility].filter(Boolean).join(" · ")}
+                      </div>
                     </div>
+                    <a
+                      href={`/api/documents/${d.id}/download`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`Open ${d.name} in a new tab`}
+                      title={`Open ${d.name} in a new tab`}
+                      className="rounded-md px-1.5 py-1 text-[11.5px] font-semibold text-brand-hover hover:bg-hover"
+                    >
+                      <I.download size={13} />
+                    </a>
+                    {d.id === currentProposalId && (
+                      <button
+                        type="button"
+                        disabled={replacementBusy}
+                        aria-label={`Replace ${d.name}`}
+                        aria-expanded={replacingId === d.id}
+                        onClick={() => setReplacingId((id) => id === d.id ? null : d.id)}
+                        className="rounded-md px-1.5 py-1 text-[11.5px] font-semibold text-brand-hover transition-colors hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Replace
+                      </button>
+                    )}
+                    {!isCommissionVoucher({ documentType: d.documentType, commissionId: d.commissionId ?? null }) && (
+                      <form action={deleteDocumentAction}>
+                        <input type="hidden" name="id" value={d.id} />
+                        <button type="submit" disabled={replacementBusy && replacingId === d.id} className="rounded-md px-1.5 py-1 text-[11.5px] font-semibold text-subtle hover:bg-hover hover:text-red disabled:cursor-not-allowed disabled:opacity-50">
+                          ✕
+                        </button>
+                      </form>
+                    )}
                   </div>
-                  <a
-                    href={`/api/documents/${d.id}/download`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={`Open ${d.name} in a new tab`}
-                    title={`Open ${d.name} in a new tab`}
-                    className="rounded-md px-1.5 py-1 text-[11.5px] font-semibold text-brand-hover hover:bg-hover"
-                  >
-                    <I.download size={13} />
-                  </a>
-                  {!isCommissionVoucher({ documentType: d.documentType, commissionId: d.commissionId ?? null }) && (
-                  <form action={deleteDocumentAction}>
-                    <input type="hidden" name="id" value={d.id} />
-                    <button type="submit" className="rounded-md px-1.5 py-1 text-[11.5px] font-semibold text-subtle hover:bg-hover hover:text-red">
-                      ✕
-                    </button>
-                  </form>
+                  {d.id === currentProposalId && (
+                    <div className={replacingId === d.id ? "mt-3" : "hidden"}>
+                      <PdfUpload
+                        clientId={client.id}
+                        prompt="Upload the corrected PDF; the current one is kept as Replaced"
+                        onBusyChange={setReplacementBusy}
+                        onUploaded={async (path, fileName) => {
+                          const result = await replaceProposalPdfAction(client.id, path, fileName);
+                          if (result.ok) {
+                            setReplacingId(null);
+                            overlays.toast("Proposal PDF replaced", `${client.fullName}: the previous PDF is kept as Replaced.`);
+                            router.refresh();
+                          }
+                          return result;
+                        }}
+                      />
+                    </div>
                   )}
                 </div>
               ))}

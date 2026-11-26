@@ -18,11 +18,13 @@ export function PdfUpload({
   prompt,
   disabled,
   onUploaded,
+  onBusyChange,
 }: {
   clientId: string;
   prompt: string;
   disabled?: boolean;
   onUploaded: (path: string, fileName: string) => Promise<ActionResult<unknown>>;
+  onBusyChange?: (busy: boolean) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,6 +33,7 @@ export function PdfUpload({
     if (!file || busy) return;
     setBusy(true);
     setError(null);
+    onBusyChange?.(true);
     try {
       const begin = await beginPdfUploadAction({ clientId, fileName: file.name, mimeType: file.type, size: file.size });
       if (!begin.ok) return setError(begin.error);
@@ -44,6 +47,7 @@ export function PdfUpload({
       setError(e instanceof Error ? e.message : "Upload failed.");
     } finally {
       setBusy(false);
+      onBusyChange?.(false);
     }
   };
 
