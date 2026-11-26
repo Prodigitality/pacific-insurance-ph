@@ -42,7 +42,7 @@ export function EmailAttachmentChoices({
   const [open, setOpen] = useState(documentIds.length > 0 || emailAttachments.length > 0 || renewalNotice);
   // The upload resolves after an await; read the selection as it is then, not as it was at click time.
   const documentIdsRef = useRef(documentIds);
-  documentIdsRef.current = documentIds;
+  useEffect(() => { documentIdsRef.current = documentIds; }, [documentIds]);
   const [documents, setDocuments] = useState<EmailDocumentOption[] | null>(null);
   const [originals, setOriginals] = useState<RequirementEmailAttachment[] | null>(null);
   const [error, setError] = useState<string | null>(null);
