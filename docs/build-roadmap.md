@@ -88,6 +88,12 @@ and L19 Renewals filter by due month or date range are integrated and pushed (`3
 No migration. TypeScript, changed-file lint and 83 targeted tests pass. Browser acceptance is
 pending (owner). See [manual acceptance](../TESTING.md).
 
+## November 26: Phase L fourth wave
+
+L2 Send Renewal Notice prefill/hint/attach, L9 greyed-out actions that name what is missing, and
+L17 Pacific Cross notice flag in the Inbox are integrated and pushed (`69c90aa`). No migration.
+TypeScript, changed-file lint and 56 targeted tests pass. Browser acceptance is pending (owner).
+
 ## Important limits
 
 - **No outbound delivery is enabled.** Gmail connection management is implemented separately;

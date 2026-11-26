@@ -2780,3 +2780,34 @@ pending** and will be done by the owner. No migration; the next local number sta
   `components/inbox/correction-control.tsx:167` error stands.
 - Browser checks for L6/L18/L19 (including Agent-login product scoping) are pending; scenarios
   are listed in `TESTING.md`.
+
+### Phase L fourth wave — implementation and verification (2026-11-26)
+
+L2, L9 and L17 are implemented, integrated and pushed (`69c90aa`); **browser acceptance is
+pending** (owner). No migration; the next local number stays `0076`.
+
+- L2: Send Renewal Notice from the Renewals list now prefills the client's email (`Renewal`
+  gained `clientEmail`). Any composer with an empty recipient and no email on file shows "No
+  email on file for … Enter one, or add it to the client record." For the renewal reminder the
+  Attachments section opens by default, the Inbox group reads **From Inbox emails** (with a hint to
+  link the Pacific Cross message via Record from Inbox first), and a PDF upload files the notice as
+  a client document of type `Renewal Notice` and selects it. The upload reuses `PdfUpload` +
+  `registerUploadedPdf` through one thin action, `registerEmailAttachmentUploadAction` (real sender
+  and client access required). The same upload appears in other composers that use
+  `EmailAttachmentChoices`, storing type `Other`. Send semantics are unchanged (`42c1c0c`,
+  `7993218`, `c14c988`).
+- L9: greyed-out actions now name what is missing, from the same rule that disables them:
+  claim step 2 and Application step 1 list each outstanding required document (5 chips, then
+  "+N more"; Optional excluded, Count as required included); Application step 2 lists the pending
+  medical review; step 5 the premium amount; the Travel payment form uses `BlockedNotice`; claim
+  **Change claim type** shows its reason. Helper: `lib/applications/blocked-actions.ts` (`c54b086`).
+- L17: mail from exactly `noreply-pacific@pacificcross.ph` shows a **Pacific Cross notice** badge in
+  the Inbox list and the Link panel. Suggestions for it add the reason "Pacific Cross notice
+  (insurer no-reply)" and replace the unknown-sender warning with "Automated insurer notice —
+  confirm the policyholder before linking." Matching still uses policy numbers/CRM references (and
+  existing thread/participant evidence); no name matching, nothing linked automatically (`8d430ef`).
+- TypeScript passed; lint on the 19 changed files passed after `c14c988` fixed a render-time ref
+  write; 4 targeted test files passed **56/56**. Full-repo lint not rerun; the known
+  `components/inbox/correction-control.tsx:167` error stands.
+- Still open in Phase L: L1 (multi-To/CC; needs migration, live Gmail test and decisions), L4/L5
+  (hosted carrier-library load), L3/L8/L14 (Impeccable Live). Browser scenarios are in `TESTING.md`.

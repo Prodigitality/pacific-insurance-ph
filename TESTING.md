@@ -8,6 +8,32 @@ The new instructions are based on the current implementation and the recorded ve
 [Development Alignment](docs/development-alignment.md). They are not a claim that every scenario
 was rerun while updating this document.
 
+## November 26: Phase L wave four (L2/L9/L17)
+
+Implemented, integrated and pushed (`69c90aa`); **browser acceptance is pending** (owner to run).
+
+Recorded verification:
+- `npx tsc --noEmit`: passed.
+- `npm run lint -- <19 changed files>`: passed after `c14c988`. Full-repo lint not rerun.
+- `npm test -- --maxWorkers=1 lib/gmail/matching.test.ts lib/applications/blocked-actions.test.ts
+  lib/communications/recipient-hint.test.ts 'app/(app)/renewals/actions.test.ts'`: **56 passed**.
+  Covers the exact-mailbox recognizer and lookalikes, notice reason/warning, no-reference notices,
+  blocker naming/cap/Optional/Count-as-required/medical review, and the missing-email hint.
+
+Pending browser scenarios (synthetic or tagged disposable records only; never email a real client):
+1. L2: Renewals row **Send notice** prefills the client email; a client with no email shows the
+   hint; Attachments opens for the renewal reminder; upload a PDF (including a password-protected
+   one) and it appears selected and on the client's documents as `Renewal Notice`; an Inbox-linked
+   attachment appears under **From Inbox emails**; the empty-Inbox hint shows otherwise. Group
+   send and header **Send notices** unchanged.
+2. L9: claim step 2 and Application step 1 chips name each missing document and jump to its row;
+   6+ missing shows "+N more"; Optional rows never listed; Application step 2 pending medical
+   review and step 5 empty premium show chips; Travel payment form shows the amber notice; claim
+   **Change claim type** reason. Chips disappear once the action enables.
+3. L17: a message from `noreply-pacific@pacificcross.ph` shows the badge in the list and Link
+   panel; with the policy number in the subject/body it suggests that policy with the notice reason
+   and insurer warning; without one, no suggestion; other senders unchanged; nothing auto-links.
+
 ## November 26: Phase L wave three (L6/L18/L19)
 
 Implemented, integrated and pushed (`3da909a`); **browser acceptance is pending** (owner to run).
